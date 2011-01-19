@@ -1,16 +1,16 @@
 
 window.addEvent('domready', function(){
 
-	$$('.item').addEvent('mousedown', function(evt){
+	$$('.item').addEvent('mousedown', function(event){
+		event.stop();
 
-		evt.stop();
-
-		var clone = this.clone().setStyles(this.getCoordinates()).setStyles({
-				'opacity': 0.7,
-				'position': 'absolute'
-			}).inject(document.body);
-
+		// `this` refers to the element with the .item class
  		var shirt = this;
+
+		var clone = shirt.clone().setStyles(shirt.getCoordinates()).setStyles({
+			opacity: 0.7,
+			position: 'absolute'
+		}).inject(document.body);
 
 		var drag = new Drag.Move(clone, {
 
@@ -30,9 +30,12 @@ window.addEvent('domready', function(){
 			},
 			onLeave: function(dragging, cart){
 				cart.tween('background-color', '#FFF');
+			},
+			onCancel: function(dragging){
+				dragging.destroy();
 			}
 		});
-		drag.start(evt);
+		drag.start(event);
 	});
 
 });
