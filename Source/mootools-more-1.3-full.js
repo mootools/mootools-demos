@@ -1,6 +1,3 @@
-// MooTools: the javascript framework.
-// Load this file's selection again by visiting: http://mootools.net/more/8eff294bf56290a32b86a9b78d3695b6
-// Or build this file again with packager using: packager build More/Chain.Wait More/Array.Extras More/Date.Extras More/Number.Format More/URI.Relative More/Hash.Extras More/Element.Pin More/Form.Request.Append More/Form.Validator.Inline More/Form.Validator.Extras More/OverText More/Fx.Accordion More/Fx.Move More/Fx.Reveal More/Fx.Slide More/Fx.SmoothScroll More/Fx.Sort More/Slider More/Sortables More/Request.JSONP More/Request.Queue More/Request.Periodical More/Assets More/Color More/Group More/Hash.Cookie More/HtmlTable.Zebra More/HtmlTable.Sort More/HtmlTable.Select More/Keyboard.Extras More/Scroller More/Tips More/Spinner More/Locale
 /*
 ---
 
@@ -30,9 +27,313 @@ provides: [MooTools.More]
 */
 
 MooTools.More = {
-	'version': '1.3.0.1',
-	'build': '6dce99bed2792dffcbbbb4ddc15a1fb9a41994b5'
+	'version': '1.3.0.2dev',
+	'build': '58e2f94dd1affa02a7ac3e6dc9e630b6d3b6d8bb'
 };
+
+
+/*
+---
+
+name: Events.Pseudos
+
+description: Adds the functionality to add pseudo events
+
+license: MIT-style license
+
+authors:
+  - Arian Stolwijk
+
+requires: [Core/Class.Extras, Core/Slick.Parser, More/MooTools.More]
+
+provides: [Events.Pseudos]
+
+...
+*/
+
+Events.Pseudos = function(pseudos, addEvent, removeEvent){
+
+	var storeKey = 'monitorEvents:';
+
+	var storageOf = function(object){
+		return {
+			store: object.store ? function(key, value){
+				object.store(storeKey + key, value);
+			} : function(key, value){
+				(object.$monitorEvents || (object.$monitorEvents = {}))[key] = value;
+			},
+			retrieve: object.retrieve ? function(key, dflt){
+				return object.retrieve(storeKey + key, dflt);
+			} : function(key, dflt){
+				if (!object.$monitorEvents) return dflt;
+				return object.$monitorEvents[key] || dflt;
+			}
+		};
+	};
+
+	var splitType = function(type){
+		if (type.indexOf(':') == -1 || !pseudos) return null;
+
+		var parsed = Slick.parse(type).expressions[0][0],
+			parsedPseudos = parsed.pseudos,
+			l = parsedPseudos.length,
+			splits = [];
+
+		while (l--) if (pseudos[parsedPseudos[l].key]){
+			splits.push({
+				event: parsed.tag,
+				value: parsedPseudos[l].value,
+				pseudo: parsedPseudos[l].key,
+				original: type
+			});
+		}
+
+		return splits.length ? splits : null;
+	};
+
+	var mergePseudoOptions = function(split){
+		return Object.merge.apply(this, split.map(function(item){
+			return pseudos[item.pseudo].options || {};
+		}));
+	}
+
+	return {
+
+		addEvent: function(type, fn, internal){
+			var split = splitType(type);
+			if (!split) return addEvent.call(this, type, fn, internal);
+
+			var storage = storageOf(this),
+				events = storage.retrieve(type, []),
+				eventType = split[0].event,
+				options = mergePseudoOptions(split),
+				stack = fn,
+				eventOptions = options[eventType] || {},
+				args = Array.slice(arguments, 2),
+				self = this,
+				monitor;
+
+			if (eventOptions.args) args.append(Array.from(eventOptions.args));
+			if (eventOptions.base) eventType = eventOptions.base;
+			if (eventOptions.onAdd) eventOptions.onAdd(this);
+
+			split.each(function(item){
+				var stackFn = stack;
+				stack = function(){
+					(eventOptions.listener || pseudos[item.pseudo].listener).call(self, item, stackFn, arguments, monitor, options);
+				};
+			});
+			monitor = stack.bind(this);
+
+			events.include({event: fn, monitor: monitor});
+			storage.store(type, events);
+
+			addEvent.apply(this, [type, fn].concat(args));
+			return addEvent.apply(this, [eventType, monitor].concat(args));
+		},
+
+		removeEvent: function(type, fn){
+			var split = splitType(type);
+			if (!split) return removeEvent.call(this, type, fn);
+
+			var storage = storageOf(this),
+				events = storage.retrieve(type);
+			if (!events) return this;
+
+			var eventType = split[0].event,
+				options = mergePseudoOptions(split),
+				eventOptions = options[eventType] || {},
+				args = Array.slice(arguments, 2);
+
+			if (eventOptions.args) args.append(Array.from(eventOptions.args));
+			if (eventOptions.base) eventType = eventOptions.base;
+			if (eventOptions.onRemove) eventOptions.onRemove(this);
+
+			removeEvent.apply(this, [type, fn].concat(args));
+			events.each(function(monitor, i){
+				if (!fn || monitor.event == fn) removeEvent.apply(this, [eventType, monitor.monitor].concat(args));
+				delete events[i];
+			}, this);
+
+			storage.store(type, events);
+			return this;
+		}
+
+	};
+
+};
+
+(function(){
+
+var pseudos = {
+
+	once: {
+		listener: function(split, fn, args, monitor){
+			fn.apply(this, args);
+			this.removeEvent(split.event, monitor)
+				.removeEvent(split.original, fn);
+		}
+	},
+
+	throttle: {
+		listener: function(split, fn, args){
+			if (!fn._throttled){
+				fn.apply(this, args);
+				fn._throttled = setTimeout(function(){
+					fn._throttled = false;
+				}, split.value || 250);
+			}
+		}
+	},
+
+	pause: {
+		listener: function(split, fn, args){
+			clearTimeout(fn._pause);
+			fn._pause = fn.delay(split.value || 250, this, args);
+		}
+	}
+
+};
+
+Events.definePseudo = function(key, listener){
+	pseudos[key] = Type.isFunction(listener) ? {listener: listener} : listener;
+	return this;
+};
+
+Events.lookupPseudo = function(key){
+	return pseudos[key];
+};
+
+var proto = Events.prototype;
+Events.implement(Events.Pseudos(pseudos, proto.addEvent, proto.removeEvent));
+
+['Request', 'Fx'].each(function(klass){
+	if (this[klass]) this[klass].implement(Events.prototype);
+});
+
+})();
+
+
+/*
+---
+
+script: Class.Refactor.js
+
+name: Class.Refactor
+
+description: Extends a class onto itself with new property, preserving any items attached to the class's namespace.
+
+license: MIT-style license
+
+authors:
+  - Aaron Newton
+
+requires:
+  - Core/Class
+  - /MooTools.More
+
+# Some modules declare themselves dependent on Class.Refactor
+provides: [Class.refactor, Class.Refactor]
+
+...
+*/
+
+Class.refactor = function(original, refactors){
+
+	Object.each(refactors, function(item, name){
+		var origin = original.prototype[name];
+		if (origin && origin.$origin) origin = origin.$origin;
+		original.implement(name, (typeof item == 'function') ? function(){
+			var old = this.previous;
+			this.previous = origin || function(){};
+			var value = item.apply(this, arguments);
+			this.previous = old;
+			return value;
+		} : item);
+	});
+
+	return original;
+
+};
+
+
+/*
+---
+
+script: Class.Binds.js
+
+name: Class.Binds
+
+description: Automagically binds specified methods in a class to the instance of the class.
+
+license: MIT-style license
+
+authors:
+  - Aaron Newton
+
+requires:
+  - Core/Class
+  - /MooTools.More
+
+provides: [Class.Binds]
+
+...
+*/
+
+Class.Mutators.Binds = function(binds){
+	if (!this.prototype.initialize) this.implement('initialize', function(){});
+	return binds;
+};
+
+Class.Mutators.initialize = function(initialize){
+	return function(){
+		Array.from(this.Binds).each(function(name){
+			var original = this[name];
+			if (original) this[name] = original.bind(this);
+		}, this);
+		return initialize.apply(this, arguments);
+	};
+};
+
+
+/*
+---
+
+script: Class.Occlude.js
+
+name: Class.Occlude
+
+description: Prevents a class from being applied to a DOM element twice.
+
+license: MIT-style license.
+
+authors:
+  - Aaron Newton
+
+requires:
+  - Core/Class
+  - Core/Element
+  - /MooTools.More
+
+provides: [Class.Occlude]
+
+...
+*/
+
+Class.Occlude = new Class({
+
+	occlude: function(property, element){
+		element = document.id(element || this.element);
+		var instance = element.retrieve(property || this.property);
+		if (instance && !this.occluded)
+			return (this.occluded = instance);
+
+		this.occluded = false;
+		element.store(property || this.property, this);
+		return this.occluded;
+	}
+
+});
 
 
 /*
@@ -72,14 +373,9 @@ provides: [Chain.Wait]
 
 	Chain.implement(wait);
 
-	if (this.Fx){
-		Fx.implement(wait);
-		['Css', 'Tween', 'Elements'].each(function(cls){
-			if (Fx[cls]) Fx[cls].implement(wait);
-		});
-	}
+	if (this.Fx) Fx.implement(wait);
 
-	if (this.Element && this.Fx){
+	if (this.Element && Element.implement && this.Fx){
 		Element.implement({
 
 			chains: function(effects){
@@ -121,6 +417,7 @@ authors:
 
 requires:
   - Core/Array
+  - MooTools.More
 
 provides: [Array.Extras]
 
@@ -211,8 +508,8 @@ var defined = function(value){
 
 Object.extend({
 
-	getFromPath: function(source, key){
-		var parts = key.split('.');
+	getFromPath: function(source, parts){
+		if (typeof parts == 'string') parts = parts.split('.');
 		for (var i = 0, l = parts.length; i < l; i++){
 			if (source.hasOwnProperty(parts[i])) source = source[parts[i]];
 			else return null;
@@ -297,7 +594,7 @@ var Locale = this.Locale = {
 
 		if (set) locale.define(set, key, value);
 
-
+		
 
 		if (!current) current = locale;
 
@@ -312,7 +609,7 @@ var Locale = this.Locale = {
 
 			this.fireEvent('change', locale);
 
-
+			
 		}
 
 		return this;
@@ -447,6 +744,7 @@ Locale.define('en-US', 'Date', {
 	shortTime: '%I:%M%p',
 	AM: 'AM',
 	PM: 'PM',
+	firstDayOfWeek: 0,
 
 	// Date.Extras
 	ordinal: function(dayOfMonth){
@@ -506,9 +804,9 @@ requires:
   - Core/Array
   - Core/String
   - Core/Number
-  - /Locale
-  - /Locale.en-US.Date
-  - /MooTools.More
+  - MooTools.More
+  - Locale
+  - Locale.en-US.Date
 
 provides: [Date]
 
@@ -519,7 +817,7 @@ provides: [Date]
 
 var Date = this.Date;
 
-Date.Methods = {
+var DateMethods = Date.Methods = {
 	ms: 'Milliseconds',
 	year: 'FullYear',
 	min: 'Minutes',
@@ -534,26 +832,26 @@ Date.Methods = {
 	Date.Methods[method.toLowerCase()] = method;
 });
 
-var pad = function(what, length, string){
-	if (!string) string = '0';
-	return new Array(length - String(what).length + 1).join(string) + what;
+var pad = function(n, digits, string){
+	if (digits == 1) return n;
+	return n < Math.pow(10, digits - 1) ? (string || '0') + pad(n, digits - 1, string) : n;
 };
 
 Date.implement({
 
 	set: function(prop, value){
 		prop = prop.toLowerCase();
-		var m = Date.Methods;
-		if (m[prop]) this['set' + m[prop]](value);
+		var method = DateMethods[prop] && 'set' + DateMethods[prop];
+		if (method && this[method]) this[method](value);
 		return this;
 	}.overloadSetter(),
 
 	get: function(prop){
 		prop = prop.toLowerCase();
-		var m = Date.Methods;
-		if (m[prop]) return this['get' + m[prop]]();
+		var method = DateMethods[prop] && 'get' + DateMethods[prop];
+		if (method && this[method]) return this[method]();
 		return null;
-	},
+	}.overloadGetter(),
 
 	clone: function(){
 		return new Date(this.get('time'));
@@ -608,8 +906,55 @@ Date.implement({
 			- Date.UTC(this.get('year'), 0, 1)) / Date.units.day();
 	},
 
-	getWeek: function(){
-		return (this.get('dayofyear') / 7).ceil();
+	setDay: function(day, firstDayOfWeek){
+		if (firstDayOfWeek == null){
+			firstDayOfWeek = Date.getMsg('firstDayOfWeek');
+			if (firstDayOfWeek === '') firstDayOfWeek = 1;
+		}
+
+		day = (7 + Date.parseDay(day, true) - firstDayOfWeek) % 7;
+		var currentDay = (7 + this.get('day') - firstDayOfWeek) % 7;
+
+		return this.increment('day', day - currentDay);
+	},
+
+	getWeek: function(firstDayOfWeek){
+		if (firstDayOfWeek == null){
+			firstDayOfWeek = Date.getMsg('firstDayOfWeek');
+			if (firstDayOfWeek === '') firstDayOfWeek = 1;
+		}
+
+		var date = this,
+			dayOfWeek = (7 + date.get('day') - firstDayOfWeek) % 7,
+			dividend = 0,
+			firstDayOfYear;
+
+		if (firstDayOfWeek == 1){
+			// ISO-8601, week belongs to year that has the most days of the week (i.e. has the thursday of the week)
+			var month = date.get('month'),
+				startOfWeek = date.get('date') - dayOfWeek;
+
+			if (month == 11 && startOfWeek > 28) return 1; // Week 1 of next year
+
+			if (month == 0 && startOfWeek < -2){
+				// Use a date from last year to determine the week
+				date = new Date(date).decrement('day', dayOfWeek);
+				dayOfWeek = 0;
+			}
+
+			firstDayOfYear = new Date(date.get('year'), 0, 1).get('day') || 7;
+			if (firstDayOfYear > 4) dividend = -7; // First week of the year is not week 1
+		} else {
+			// In other cultures the first week of the year is always week 1 and the last week always 53 or 54.
+			// Days in the same week can have a different weeknumber if the week spreads across two years.
+			firstDayOfYear = new Date(date.get('year'), 0, 1).get('day');
+		}
+
+		dividend += date.get('dayofyear');
+		dividend += 6 - dayOfWeek; // Add days so we calculate the current date's week as a full week
+		dividend += (7 + firstDayOfYear - firstDayOfWeek) % 7; // Make up for first week of the year not being a full week
+
+		return (dividend / 7);
 	},
 
 	getOrdinal: function(day){
@@ -650,8 +995,12 @@ Date.implement({
 
 	format: function(f){
 		if (!this.isValid()) return 'invalid date';
-		f = f || '%x %X';
-		f = formats[f.toLowerCase()] || f; // replace short-hand with actual format
+		if (!f) f = '%x %X';
+
+		var formatLower = f.toLowerCase();
+		if (formatters[formatLower]) return formatters[formatLower](this); // it's a formatter!
+		f = formats[formatLower] || f; // replace short-hand with actual format
+
 		var d = this;
 		return f.replace(/%([a-z%])/gi,
 			function($0, $1){
@@ -660,7 +1009,7 @@ Date.implement({
 					case 'A': return Date.getMsg('days')[d.get('day')];
 					case 'b': return Date.getMsg('months_abbr')[d.get('month')];
 					case 'B': return Date.getMsg('months')[d.get('month')];
-					case 'c': return d.format('%a %b %d %H:%m:%S %Y');
+					case 'c': return d.format('%a %b %d %H:%M:%S %Y');
 					case 'd': return pad(d.get('date'), 2);
 					case 'e': return pad(d.get('date'), 2, ' ');
 					case 'H': return pad(d.get('hr'), 2);
@@ -675,13 +1024,13 @@ Date.implement({
 					case 'p': return Date.getMsg(d.get('ampm'));
 					case 's': return Math.round(d / 1000);
 					case 'S': return pad(d.get('seconds'), 2);
+					case 'T': return d.format('%H:%M:%S');
 					case 'U': return pad(d.get('week'), 2);
 					case 'w': return d.get('day');
 					case 'x': return d.format(Date.getMsg('shortDate'));
 					case 'X': return d.format(Date.getMsg('shortTime'));
 					case 'y': return d.get('year').toString().substr(2);
 					case 'Y': return d.get('year');
-
 					case 'z': return d.get('GMTOffset');
 					case 'Z': return d.get('Timezone');
 				}
@@ -694,28 +1043,50 @@ Date.implement({
 		return this.format('iso8601');
 	}
 
+}).alias({
+	toJSON: 'toISOString',
+	compare: 'diff',
+	strftime: 'format'
 });
-
-
-Date.alias('toJSON', 'toISOString');
-Date.alias('compare', 'diff');
-Date.alias('strftime', 'format');
 
 var formats = {
 	db: '%Y-%m-%d %H:%M:%S',
 	compact: '%Y%m%dT%H%M%S',
-	iso8601: '%Y-%m-%dT%H:%M:%S%T',
-	rfc822: '%a, %d %b %Y %H:%M:%S %Z',
 	'short': '%d %b %H:%M',
 	'long': '%B %d, %Y %H:%M'
 };
 
-var parsePatterns = [];
-var nativeParse = Date.parse;
+// The day and month abbreviations are standardized, so we cannot use simply %a and %b because they will get localized
+var rfcDayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+	rfcMonthAbbr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+var formatters = {
+	rfc822: function(date){
+		return rfcDayAbbr[date.get('day')] + date.format(', %d ') + rfcMonthAbbr[date.get('month')] + date.format(' %Y %H:%M:%S %Z');
+	},
+	rfc2822: function(date){
+		return rfcDayAbbr[date.get('day')] + date.format(', %d ') + rfcMonthAbbr[date.get('month')] + date.format(' %Y %H:%M:%S %z');
+	},
+	iso8601: function(date){
+		return (
+			date.getUTCFullYear() + '-' +
+			pad(date.getUTCMonth() + 1, 2) + '-' +
+			pad(date.getUTCDate(), 2) + 'T' +
+			pad(date.getUTCHours(), 2) + ':' +
+			pad(date.getUTCMinutes(), 2) + ':' +
+			pad(date.getUTCSeconds(), 2) + '.' +
+			pad(date.getUTCMilliseconds(), 3) + 'Z'
+		);
+	}
+};
+
+
+var parsePatterns = [],
+	nativeParse = Date.parse;
 
 var parseWord = function(type, word, num){
-	var ret = -1;
-	var translated = Date.getMsg(type + 's');
+	var ret = -1,
+		translated = Date.getMsg(type + 's');
 	switch (typeOf(word)){
 		case 'object':
 			ret = translated[word.get(type)];
@@ -779,7 +1150,12 @@ Date.extend({
 			var bits = pattern.re.exec(from);
 			return (bits) ? (parsed = pattern.handler(bits)) : false;
 		});
-		return parsed || new Date(nativeParse(from));
+
+		if (!(parsed && parsed.isValid())){
+			parsed = new Date(nativeParse(from));
+			if (!(parsed && parsed.isValid())) parsed = new Date(from.toInt());
+		}
+		return parsed;
 	},
 
 	parseDay: function(day, num){
@@ -810,31 +1186,36 @@ Date.extend({
 
 	defineFormat: function(name, format){
 		formats[name] = format;
+		return this;
 	},
 
 	defineFormats: function(formats){
 		for (var name in formats) Date.defineFormat(name, formats[name]);
+		return this;
 	},
 
-
+	
 
 	defineParser: function(pattern){
 		parsePatterns.push((pattern.re && pattern.handler) ? pattern : build(pattern));
+		return this;
 	},
 
 	defineParsers: function(){
 		Array.flatten(arguments).each(Date.defineParser);
+		return this;
 	},
 
 	define2DigitYearStart: function(year){
 		startYear = year % 100;
 		startCentury = year - startYear;
+		return this;
 	}
 
 });
 
-var startCentury = 1900;
-var startYear = 70;
+var startCentury = 1900,
+	startYear = 70;
 
 var regexOf = function(type){
 	return new RegExp('(?:' + Date.getMsg(type).map(function(name){
@@ -844,10 +1225,12 @@ var regexOf = function(type){
 
 var replacers = function(key){
 	switch(key){
+		case 'T':
+			return '%H:%M:%S';
 		case 'x': // iso8601 covers yyyy-mm-dd, so just check if month is first
 			return ((Date.orderIndex('month') == 1) ? '%m[-./]%d' : '%d[-./]%m') + '([-./]%y)?';
 		case 'X':
-			return '%H([.:]%M)?([.:]%S([.:]%s)?)? ?%p? ?%T?';
+			return '%H([.:]%M)?([.:]%S([.:]%s)?)? ?%p? ?%z?';
 	}
 	return null;
 };
@@ -862,7 +1245,7 @@ var keys = {
 	p: /[ap]\.?m\.?/,
 	y: /\d{2}|\d{4}/,
 	Y: /\d{4}/,
-	T: /Z|[+-]\d{2}(?::?\d{2})?/
+	z: /Z|[+-]\d{2}(?::?\d{2})?/
 };
 
 keys.m = keys.I;
@@ -911,7 +1294,7 @@ var build = function(format){
 
 			if (year != null) handle.call(date, 'y', year); // need to start in the right year
 			if ('d' in bits) handle.call(date, 'd', 1);
-			if ('m' in bits || 'b' in bits || 'B' in bits) handle.call(date, 'm', 1);
+			if ('m' in bits || bits['b'] || bits['B']) handle.call(date, 'm', 1);
 
 			for (var key in bits) handle.call(date, key, bits[key]);
 			return date;
@@ -938,7 +1321,7 @@ var handle = function(key, value){
 			value = +value;
 			if (value < 100) value += startCentury + (value < startYear ? 100 : 0);
 			return this.set('year', value);
-		case 'T':
+		case 'z':
 			if (value == 'Z') value = '+00';
 			var offset = value.match(/([+-])(\d{2}):?(\d{2})?/);
 			offset = (offset[1] + '1') * (offset[2] * 60 + (+offset[3] || 0)) + this.getTimezoneOffset();
@@ -955,7 +1338,9 @@ Date.defineParsers(
 	'%d%o( %b( %Y)?)?( %X)?', // "31st", "31st December", "31 Dec 1999", "31 Dec 1999 11:59pm"
 	'%b( %d%o)?( %Y)?( %X)?', // Same as above with month and day switched
 	'%Y %b( %d%o( %X)?)?', // Same as above with year coming first
-	'%o %b %d %X %T %Y' // "Thu Oct 22 08:11:23 +0000 2009"
+	'%o %b %d %X %z %Y', // "Thu Oct 22 08:11:23 +0000 2009"
+	'%T', // %H:%M:%S
+	'%H:%M( ?%p)?' // "11:05pm", "11:05 am" and "11:05"
 );
 
 Locale.addEvent('change', function(language){
@@ -990,36 +1375,33 @@ provides: [Date.Extras]
 
 Date.implement({
 
-	timeDiffInWords: function(relative_to){
-		return Date.distanceOfTimeInWords(this, relative_to || new Date);
+	timeDiffInWords: function(to){
+		return Date.distanceOfTimeInWords(this, to || new Date);
 	},
 
-	timeDiff: function(to, joiner){
+	timeDiff: function(to, separator){
 		if (to == null) to = new Date;
-		var delta = ((to - this) / 1000).toInt();
-		if (!delta) return '0s';
+		var delta = ((to - this) / 1000).floor();
 
-		var durations = {s: 60, m: 60, h: 24, d: 365, y: 0};
-		var duration, vals = [];
+		var vals = [],
+			durations = [60, 60, 24, 365, 0],
+			names = ['s', 'm', 'h', 'd', 'y'],
+			value, duration;
 
-		for (var step in durations){
-			if (!delta) break;
-			if ((duration = durations[step])){
-				vals.unshift((delta % duration) + step);
-				delta = (delta / duration).toInt();
-			} else {
-				vals.unshift(delta + step);
+		for (var item = 0; item < durations.length; item++){
+			if (item && !delta) break;
+			value = delta;
+			if ((duration = durations[item])){
+				value = (delta % duration);
+				delta = (delta / duration).floor();
 			}
+			vals.unshift(value + (names[item] || ''));
 		}
 
-		return vals.join(joiner || ':');
+		return vals.join(separator || ':');
 	}
 
-});
-
-Date.alias('timeAgoInWords', 'timeDiffInWords');
-
-Date.extend({
+}).extend({
 
 	distanceOfTimeInWords: function(from, to){
 		return Date.getTimePhrase(((to - from) / 1000).toInt());
@@ -1055,10 +1437,7 @@ Date.extend({
 		return Date.getMsg(msg + suffix, delta).substitute({delta: delta});
 	}
 
-});
-
-
-Date.defineParsers(
+}).defineParsers(
 
 	{
 		// "today", "tomorrow", "yesterday"
@@ -1087,7 +1466,7 @@ Date.defineParsers(
 		}
 	}
 
-);
+).alias('timeAgoInWords', 'timeDiffInWords');
 
 
 /*
@@ -1195,8 +1574,8 @@ Number.implement({
 		var prefix = getOption('prefix'),
 			suffix = getOption('suffix');
 
-		if (decimals > 0 && decimals <= 20) value = value.toFixed(decimals);
-		if (precision >= 1 && precision <= 21) value = value.toPrecision(precision);
+		if (decimals !== '' && decimals >= 0 && decimals <= 20) value = value.toFixed(decimals);
+		if (precision >= 1 && precision <= 21) value = (+value).toPrecision(precision);
 
 		value += '';
 
@@ -1263,48 +1642,151 @@ Number.implement({
 /*
 ---
 
-script: Class.Refactor.js
+script: String.Extras.js
 
-name: Class.Refactor
+name: String.Extras
 
-description: Extends a class onto itself with new property, preserving any items attached to the class's namespace.
+description: Extends the String native object to include methods useful in managing various kinds of strings (query strings, urls, html, etc).
 
 license: MIT-style license
 
 authors:
   - Aaron Newton
+  - Guillermo Rauch
+  - Christopher Pitt
 
 requires:
-  - Core/Class
-  - /MooTools.More
+  - Core/String
+  - Core/Array
+  - MooTools.More
 
-# Some modules declare themselves dependent on Class.Refactor
-provides: [Class.refactor, Class.Refactor]
+provides: [String.Extras]
 
 ...
 */
 
-Class.refactor = function(original, refactors){
+(function(){
 
-	Object.each(refactors, function(item, name){
-		var origin = original.prototype[name];
-		if (origin && origin.$origin) origin = origin.$origin;
-		if (origin && typeof item == 'function'){
-			original.implement(name, function(){
-				var old = this.previous;
-				this.previous = origin;
-				var value = item.apply(this, arguments);
-				this.previous = old;
-				return value;
-			});
-		} else {
-			original.implement(name, item);
-		}
-	});
+var special = {
+	'a': /[àáâãäåăą]/g,
+	'A': /[ÀÁÂÃÄÅĂĄ]/g,
+	'c': /[ćčç]/g,
+	'C': /[ĆČÇ]/g,
+	'd': /[ďđ]/g,
+	'D': /[ĎÐ]/g,
+	'e': /[èéêëěę]/g,
+	'E': /[ÈÉÊËĚĘ]/g,
+	'g': /[ğ]/g,
+	'G': /[Ğ]/g,
+	'i': /[ìíîï]/g,
+	'I': /[ÌÍÎÏ]/g,
+	'l': /[ĺľł]/g,
+	'L': /[ĹĽŁ]/g,
+	'n': /[ñňń]/g,
+	'N': /[ÑŇŃ]/g,
+	'o': /[òóôõöøő]/g,
+	'O': /[ÒÓÔÕÖØ]/g,
+	'r': /[řŕ]/g,
+	'R': /[ŘŔ]/g,
+	's': /[ššş]/g,
+	'S': /[ŠŞŚ]/g,
+	't': /[ťţ]/g,
+	'T': /[ŤŢ]/g,
+	'ue': /[ü]/g,
+	'UE': /[Ü]/g,
+	'u': /[ùúûůµ]/g,
+	'U': /[ÙÚÛŮ]/g,
+	'y': /[ÿý]/g,
+	'Y': /[ŸÝ]/g,
+	'z': /[žźż]/g,
+	'Z': /[ŽŹŻ]/g,
+	'th': /[þ]/g,
+	'TH': /[Þ]/g,
+	'dh': /[ð]/g,
+	'DH': /[Ð]/g,
+	'ss': /[ß]/g,
+	'oe': /[œ]/g,
+	'OE': /[Œ]/g,
+	'ae': /[æ]/g,
+	'AE': /[Æ]/g
+},
 
-	return original;
-
+tidy = {
+	' ': /[\xa0\u2002\u2003\u2009]/g,
+	'*': /[\xb7]/g,
+	'\'': /[\u2018\u2019]/g,
+	'"': /[\u201c\u201d]/g,
+	'...': /[\u2026]/g,
+	'-': /[\u2013]/g,
+//	'--': /[\u2014]/g,
+	'&raquo;': /[\uFFFD]/g
 };
+
+var walk = function(string, replacements){
+	var result = string;
+	for (key in replacements) result = result.replace(replacements[key], key);
+	return result;
+};
+
+var getRegexForTag = function(tag, contents){
+	tag = tag || '';
+	var regstr = contents ? "<" + tag + "(?!\\w)[^>]*>([\\s\\S]*?)<\/" + tag + "(?!\\w)>" : "<\/?" + tag + "([^>]+)?>";
+	reg = new RegExp(regstr, "gi");
+	return reg;
+};
+
+String.implement({
+
+	standardize: function(){
+		return walk(this, special);
+	},
+
+	repeat: function(times){
+		return new Array(times + 1).join(this);
+	},
+
+	pad: function(length, str, direction){
+		if (this.length >= length) return this;
+
+		var pad = (str == null ? ' ' : '' + str)
+			.repeat(length - this.length)
+			.substr(0, length - this.length);
+
+		if (!direction || direction == 'right') return this + pad;
+		if (direction == 'left') return pad + this;
+
+		return pad.substr(0, (pad.length / 2).floor()) + this + pad.substr(0, (pad.length / 2).ceil());
+	},
+
+	getTags: function(tag, contents){
+		return this.match(getRegexForTag(tag, contents)) || [];
+	},
+
+	stripTags: function(tag, contents){
+		return this.replace(getRegexForTag(tag, contents), '');
+	},
+
+	tidy: function(){
+		return walk(this, tidy);
+	},
+
+	truncate: function(max, trail, atChar){
+		var string = this;
+		if (trail == null && arguments.length == 1) trail = '…';
+		if (string.length > max){
+			string = string.substring(0, max);
+			if (atChar){
+				var index = string.lastIndexOf(atChar);
+				if (index != -1) string = string.substr(0, index);
+			}
+			if (trail) string += trail;
+		}
+		return string;
+	}
+
+});
+
+})();
 
 
 /*
@@ -1345,11 +1827,11 @@ String.implement({
 		if (!vars.length) return object;
 
 		vars.each(function(val){
-			var index = val.indexOf('='),
-				value = val.substr(index + 1),
-				keys = index < 0 ? [''] : val.substr(0, index).match(/([^\]\[]+|(\B)(?=\]))/g),
+			var index = val.indexOf('=') + 1,
+				value = index ? val.substr(index) : '',
+				keys = index ? val.substr(0, index - 1).match(/([^\]\[]+|(\B)(?=\]))/g) : [val],
 				obj = object;
-
+			if (!keys) return;
 			if (decodeValues) value = decodeURIComponent(value);
 			keys.each(function(key, i){
 				if (decodeKeys) key = decodeURIComponent(key);
@@ -1797,6 +2279,623 @@ Hash.implement({
 /*
 ---
 
+script: Element.Forms.js
+
+name: Element.Forms
+
+description: Extends the Element native object to include methods useful in managing inputs.
+
+license: MIT-style license
+
+authors:
+  - Aaron Newton
+
+requires:
+  - Core/Element
+  - /String.Extras
+  - /MooTools.More
+
+provides: [Element.Forms]
+
+...
+*/
+
+Element.implement({
+
+	tidy: function(){
+		this.set('value', this.get('value').tidy());
+	},
+
+	getTextInRange: function(start, end){
+		return this.get('value').substring(start, end);
+	},
+
+	getSelectedText: function(){
+		if (this.setSelectionRange) return this.getTextInRange(this.getSelectionStart(), this.getSelectionEnd());
+		return document.selection.createRange().text;
+	},
+
+	getSelectedRange: function(){
+		if (this.selectionStart != null){
+			return {
+				start: this.selectionStart,
+				end: this.selectionEnd
+			};
+		}
+
+		var pos = {
+			start: 0,
+			end: 0
+		};
+		var range = this.getDocument().selection.createRange();
+		if (!range || range.parentElement() != this) return pos;
+		var duplicate = range.duplicate();
+
+		if (this.type == 'text'){
+			pos.start = 0 - duplicate.moveStart('character', -100000);
+			pos.end = pos.start + range.text.length;
+		} else {
+			var value = this.get('value');
+			var offset = value.length;
+			duplicate.moveToElementText(this);
+			duplicate.setEndPoint('StartToEnd', range);
+			if (duplicate.text.length) offset -= value.match(/[\n\r]*$/)[0].length;
+			pos.end = offset - duplicate.text.length;
+			duplicate.setEndPoint('StartToStart', range);
+			pos.start = offset - duplicate.text.length;
+		}
+		return pos;
+	},
+
+	getSelectionStart: function(){
+		return this.getSelectedRange().start;
+	},
+
+	getSelectionEnd: function(){
+		return this.getSelectedRange().end;
+	},
+
+	setCaretPosition: function(pos){
+		if (pos == 'end') pos = this.get('value').length;
+		this.selectRange(pos, pos);
+		return this;
+	},
+
+	getCaretPosition: function(){
+		return this.getSelectedRange().start;
+	},
+
+	selectRange: function(start, end){
+		if (this.setSelectionRange){
+			this.focus();
+			this.setSelectionRange(start, end);
+		} else {
+			var value = this.get('value');
+			var diff = value.substr(start, end - start).replace(/\r/g, '').length;
+			start = value.substr(0, start).replace(/\r/g, '').length;
+			var range = this.createTextRange();
+			range.collapse(true);
+			range.moveEnd('character', start + diff);
+			range.moveStart('character', start);
+			range.select();
+		}
+		return this;
+	},
+
+	insertAtCursor: function(value, select){
+		var pos = this.getSelectedRange();
+		var text = this.get('value');
+		this.set('value', text.substring(0, pos.start) + value + text.substring(pos.end, text.length));
+		if (select !== false) this.selectRange(pos.start, pos.start + value.length);
+		else this.setCaretPosition(pos.start + value.length);
+		return this;
+	},
+
+	insertAroundCursor: function(options, select){
+		options = Object.append({
+			before: '',
+			defaultMiddle: '',
+			after: ''
+		}, options);
+
+		var value = this.getSelectedText() || options.defaultMiddle;
+		var pos = this.getSelectedRange();
+		var text = this.get('value');
+
+		if (pos.start == pos.end){
+			this.set('value', text.substring(0, pos.start) + options.before + value + options.after + text.substring(pos.end, text.length));
+			this.selectRange(pos.start + options.before.length, pos.end + options.before.length + value.length);
+		} else {
+			var current = text.substring(pos.start, pos.end);
+			this.set('value', text.substring(0, pos.start) + options.before + current + options.after + text.substring(pos.end, text.length));
+			var selStart = pos.start + options.before.length;
+			if (select !== false) this.selectRange(selStart, selStart + current.length);
+			else this.setCaretPosition(selStart + text.length);
+		}
+		return this;
+	}
+
+});
+
+
+/*
+---
+
+script: Elements.From.js
+
+name: Elements.From
+
+description: Returns a collection of elements from a string of html.
+
+license: MIT-style license
+
+authors:
+  - Aaron Newton
+
+requires:
+  - Core/String
+  - Core/Element
+  - /MooTools.More
+
+provides: [Elements.from, Elements.From]
+
+...
+*/
+
+Elements.from = function(text, excludeScripts){
+	if (excludeScripts || excludeScripts == null) text = text.stripScripts();
+
+	var container, match = text.match(/^\s*<(t[dhr]|tbody|tfoot|thead)/i);
+
+	if (match){
+		container = new Element('table');
+		var tag = match[1].toLowerCase();
+		if (['td', 'th', 'tr'].contains(tag)){
+			container = new Element('tbody').inject(container);
+			if (tag != 'tr') container = new Element('tr').inject(container);
+		}
+	}
+
+	return (container || new Element('div')).set('html', text).getChildren();
+};
+
+
+/*
+---
+
+name: Element.Event.Pseudos
+
+description: Adds the functionality to add pseudo events for Elements
+
+license: MIT-style license
+
+authors:
+  - Arian Stolwijk
+
+requires: [Core/Element.Event, Events.Pseudos]
+
+provides: [Element.Event.Pseudos]
+
+...
+*/
+
+(function(){
+
+var pseudos = {},
+	copyFromEvents = ['once', 'throttle', 'pause'],
+	count = copyFromEvents.length;
+
+while (count--) pseudos[copyFromEvents[count]] = Events.lookupPseudo(copyFromEvents[count]);
+
+Event.definePseudo = function(key, listener){
+	pseudos[key] = Type.isFunction(listener) ? {listener: listener} : listener;
+	return this;
+};
+
+var proto = Element.prototype;
+[Element, Window, Document].invoke('implement', Events.Pseudos(pseudos, proto.addEvent, proto.removeEvent));
+
+})();
+
+
+/*
+---
+
+name: Element.Event.Pseudos.Keys
+
+description: Adds functionality fire events if certain keycombinations are pressed
+
+license: MIT-style license
+
+authors:
+  - Arian Stolwijk
+
+requires: [Element.Event.Pseudos]
+
+provides: [Element.Event.Pseudos.Keys]
+
+...
+*/
+
+(function(){
+
+var keysStoreKey = '$moo:keys-pressed',
+	keysKeyupStoreKey = '$moo:keys-keyup';
+
+
+Event.definePseudo('keys', function(split, fn, args){
+
+	var event = args[0],
+		keys = [],
+		pressed = this.retrieve(keysStoreKey, []);
+
+	keys.append(split.value.replace('++', function(){
+		keys.push('+'); // shift++ and shift+++a
+		return '';
+	}).split('+'));
+
+	pressed.include(event.key);
+
+	if (keys.every(function(key){
+		return pressed.contains(key);
+	})) fn.apply(this, args);
+
+	this.store(keysStoreKey, pressed);
+
+	if (!this.retrieve(keysKeyupStoreKey)){
+		var keyup = function(event){
+			(function(){
+				pressed = this.retrieve(keysStoreKey, []).erase(event.key);
+				this.store(keysStoreKey, pressed);
+			}).delay(0, this); // Fix for IE
+		};
+		this.store(keysKeyupStoreKey, keyup).addEvent('keyup', keyup);
+	}
+
+});
+
+Object.append(Event.Keys, {
+	'shift': 16,
+	'control': 17,
+	'alt': 18,
+	'capslock': 20,
+	'pageup': 33,
+	'pagedown': 34,
+	'end': 35,
+	'home': 36,
+	'numlock': 144,
+	'scrolllock': 145,
+	';': 186,
+	'=': 187,
+	',': 188,
+	'-': Browser.firefox ? 109 : 189,
+	'.': 190,
+	'/': 191,
+	'`': 192,
+	'[': 219,
+	'\\': 220,
+	']': 221,
+	"'": 222,
+	'+': 107
+});
+
+})();
+
+
+/*
+---
+
+script: Element.Delegation.js
+
+name: Element.Delegation
+
+description: Extends the Element native object to include the delegate method for more efficient event management.
+
+credits:
+  - "Event checking based on the work of Daniel Steigerwald. License: MIT-style license. Copyright: Copyright (c) 2008 Daniel Steigerwald, daniel.steigerwald.cz"
+
+license: MIT-style license
+
+authors:
+  - Aaron Newton
+  - Daniel Steigerwald
+
+requires: [/MooTools.More, Element.Event.Pseudos]
+
+provides: [Element.Delegation]
+
+...
+*/
+
+(function(){
+
+var eventListenerSupport = !(window.attachEvent && !window.addEventListener),
+	nativeEvents = Element.NativeEvents;
+
+nativeEvents.focusin = 2;
+nativeEvents.focusout = 2;
+
+var check = function(split, target, event){
+	var elementEvent = Element.Events[split.event], condition;
+	if (elementEvent) condition = elementEvent.condition;
+	return Slick.match(target, split.value) && (!condition || condition.call(target, event));
+};
+
+var formObserver = function(eventName){
+
+	var $delegationKey = '$delegation:';
+
+	return {
+		base: 'focusin',
+
+		onRemove: function(element){
+			element.retrieve($delegationKey + 'forms', []).each(function(el){
+				el.retrieve($delegationKey + 'listeners', []).each(function(listener){
+					el.removeEvent(eventName, listener);
+				});
+				el.eliminate($delegationKey + eventName + 'listeners')
+					.eliminate($delegationKey + eventName + 'originalFn');
+			});
+		},
+
+		listener: function(split, fn, args, monitor, options){
+			var event = args[0],
+				forms = this.retrieve($delegationKey + 'forms', []),
+				target = event.target,
+				form = (target.get('tag') == 'form') ? target : event.target.getParent('form'),
+				formEvents = form.retrieve($delegationKey + 'originalFn', []),
+				formListeners = form.retrieve($delegationKey + 'listeners', []);
+
+			forms.include(form);
+			this.store($delegationKey + 'forms', forms);
+
+			if (!formEvents.contains(fn)){
+				var formListener = function(event){
+					if (check(split, this, event)) fn.call(this, event);
+				};
+				form.addEvent(eventName, formListener);
+
+				formEvents.push(fn);
+				formListeners.push(formListener);
+
+				form.store($delegationKey + eventName + 'originalFn', formEvents)
+					.store($delegationKey + eventName + 'listeners', formListeners)
+			}
+		}
+	};
+};
+
+var inputObserver = function(eventName){
+	return {
+		base: 'focusin',
+		listener: function(split, fn, args){
+			var events = {blur: function(){
+				this.removeEvents(events);
+			}};
+			events[eventName] = function(event){
+				if (check(split, this, event)) fn.call(this, event);
+			};
+			args[0].target.addEvents(events);
+		}
+	}
+};
+
+var eventOptions = {
+	mouseenter: {
+		base: 'mouseover'
+	},
+	mouseleave: {
+		base: 'mouseout'
+	},
+	focus: {
+		base: 'focus' + (eventListenerSupport ? '' : 'in'),
+		args: [true]
+	},
+	blur: {
+		base: eventListenerSupport ? 'blur' : 'focusout',
+		args: [true]
+	}
+};
+
+if (!eventListenerSupport) Object.append(eventOptions, {
+	submit: formObserver('submit'),
+	reset: formObserver('reset'),
+	change: inputObserver('change'),
+	select: inputObserver('select')
+});
+
+
+Event.definePseudo('relay', {
+	listener: function(split, fn, args, monitor, options){
+		var event = args[0];
+
+		for (var target = event.target; target && target != this; target = target.parentNode){
+			var finalTarget = document.id(target);
+			if (check(split, finalTarget, event)){
+				if (finalTarget) fn.call(finalTarget, event, finalTarget);
+				return;
+			}
+		}
+	},
+	options: eventOptions
+});
+
+})();
+
+
+
+/*
+---
+
+script: Element.Measure.js
+
+name: Element.Measure
+
+description: Extends the Element native object to include methods useful in measuring dimensions.
+
+credits: "Element.measure / .expose methods by Daniel Steigerwald License: MIT-style license. Copyright: Copyright (c) 2008 Daniel Steigerwald, daniel.steigerwald.cz"
+
+license: MIT-style license
+
+authors:
+  - Aaron Newton
+
+requires:
+  - Core/Element.Style
+  - Core/Element.Dimensions
+  - /MooTools.More
+
+provides: [Element.Measure]
+
+...
+*/
+
+(function(){
+
+var getStylesList = function(styles, planes){
+	var list = [];
+	Object.each(planes, function(directions){
+		Object.each(directions, function(edge){
+			styles.each(function(style){
+				list.push(style + '-' + edge + (style == 'border' ? '-width' : ''));
+			});
+		});
+	});
+	return list;
+};
+
+var calculateEdgeSize = function(edge, styles){
+	var total = 0;
+	Object.each(styles, function(value, style){
+		if (style.test(edge)) total = total + value.toInt();
+	});
+	return total;
+};
+
+var isVisible = function(el){
+	return !!(!el || el.offsetHeight || el.offsetWidth);
+};
+
+
+Element.implement({
+
+	measure: function(fn){
+		if (isVisible(this)) return fn.call(this);
+		var parent = this.getParent(),
+			toMeasure = [];
+		while (!isVisible(parent) && parent != document.body){
+			toMeasure.push(parent.expose());
+			parent = parent.getParent();
+		}
+		var restore = this.expose(),
+			result = fn.call(this);
+		restore();
+		toMeasure.each(function(restore){
+			restore();
+		});
+		return result;
+	},
+
+	expose: function(){
+		if (this.getStyle('display') != 'none') return function(){};
+		var before = this.style.cssText;
+		this.setStyles({
+			display: 'block',
+			position: 'absolute',
+			visibility: 'hidden'
+		});
+		return function(){
+			this.style.cssText = before;
+		}.bind(this);
+	},
+
+	getDimensions: function(options){
+		options = Object.merge({computeSize: false}, options);
+		var dim = {x: 0, y: 0};
+
+		var getSize = function(el, options){
+			return (options.computeSize) ? el.getComputedSize(options) : el.getSize();
+		};
+
+		var parent = this.getParent('body');
+
+		if (parent && this.getStyle('display') == 'none'){
+			dim = this.measure(function(){
+				return getSize(this, options);
+			});
+		} else if (parent){
+			try { //safari sometimes crashes here, so catch it
+				dim = getSize(this, options);
+			}catch(e){}
+		}
+
+		return Object.append(dim, (dim.x || dim.x === 0) ? {
+				width: dim.x,
+				height: dim.y
+			} : {
+				x: dim.width,
+				y: dim.height
+			}
+		);
+	},
+
+	getComputedSize: function(options){
+		
+
+		options = Object.merge({
+			styles: ['padding','border'],
+			planes: {
+				height: ['top','bottom'],
+				width: ['left','right']
+			},
+			mode: 'both'
+		}, options);
+
+		var styles = {},
+			size = {width: 0, height: 0},
+			dimensions;
+
+		if (options.mode == 'vertical'){
+			delete size.width;
+			delete options.planes.width;
+		} else if (options.mode == 'horizontal'){
+			delete size.height;
+			delete options.planes.height;
+		}
+
+		getStylesList(options.styles, options.planes).each(function(style){
+			styles[style] = this.getStyle(style).toInt();
+		}, this);
+
+		Object.each(options.planes, function(edges, plane){
+
+			var capitalized = plane.capitalize(),
+				style = this.getStyle(plane);
+
+			if (style == 'auto' && !dimensions) dimensions = this.getDimensions();
+
+			style = styles[plane] = (style == 'auto') ? dimensions[plane] : style.toInt();
+			size['total' + capitalized] = style;
+
+			edges.each(function(edge){
+				var edgesize = calculateEdgeSize(edge, styles);
+				size['computed' + edge.capitalize()] = edgesize;
+				size['total' + capitalized] += edgesize;
+			});
+
+		}, this);
+
+		return Object.append(size, styles);
+	}
+
+});
+
+})();
+
+
+/*
+---
+
 script: Element.Pin.js
 
 name: Element.Pin
@@ -1911,254 +3010,13 @@ provides: [Element.Pin]
 			return this.pin(false);
 		},
 
-		togglepin: function(){
+		togglePin: function(){
 			return this.pin(!this.retrieve('pin:_pinned'));
 		}
 
 	});
 
-})();
 
-
-/*
----
-
-script: Class.Binds.js
-
-name: Class.Binds
-
-description: Automagically binds specified methods in a class to the instance of the class.
-
-license: MIT-style license
-
-authors:
-  - Aaron Newton
-
-requires:
-  - Core/Class
-  - /MooTools.More
-
-provides: [Class.Binds]
-
-...
-*/
-
-Class.Mutators.Binds = function(binds){
-	return binds;
-};
-
-Class.Mutators.initialize = function(initialize){
-	return function(){
-		Array.from(this.Binds).each(function(name){
-			var original = this[name];
-			if (original) this[name] = original.bind(this);
-		}, this);
-		return initialize.apply(this, arguments);
-	};
-};
-
-
-/*
----
-
-script: Class.Occlude.js
-
-name: Class.Occlude
-
-description: Prevents a class from being applied to a DOM element twice.
-
-license: MIT-style license.
-
-authors:
-  - Aaron Newton
-
-requires:
-  - Core/Class
-  - Core/Element
-  - /MooTools.More
-
-provides: [Class.Occlude]
-
-...
-*/
-
-Class.Occlude = new Class({
-
-	occlude: function(property, element){
-		element = document.id(element || this.element);
-		var instance = element.retrieve(property || this.property);
-		if (instance && this.occluded != null)
-			return this.occluded = instance;
-
-		this.occluded = false;
-		element.store(property || this.property, this);
-		return this.occluded;
-	}
-
-});
-
-
-/*
----
-
-script: Element.Measure.js
-
-name: Element.Measure
-
-description: Extends the Element native object to include methods useful in measuring dimensions.
-
-credits: "Element.measure / .expose methods by Daniel Steigerwald License: MIT-style license. Copyright: Copyright (c) 2008 Daniel Steigerwald, daniel.steigerwald.cz"
-
-license: MIT-style license
-
-authors:
-  - Aaron Newton
-
-requires:
-  - Core/Element.Style
-  - Core/Element.Dimensions
-  - /MooTools.More
-
-provides: [Element.Measure]
-
-...
-*/
-
-(function(){
-
-var getStylesList = function(styles, planes){
-	var list = [];
-	Object.each(planes, function(directions){
-		Object.each(directions, function(edge){
-			styles.each(function(style){
-				list.push(style + '-' + edge + (style == 'border' ? '-width' : ''));
-			});
-		});
-	});
-	return list;
-};
-
-var calculateEdgeSize = function(edge, styles){
-	var total = 0;
-	Object.each(styles, function(value, style){
-		if (style.test(edge)) total = total + value.toInt();
-	});
-	return total;
-};
-
-
-Element.implement({
-
-	measure: function(fn){
-		var visibility = function(el){
-			return !!(!el || el.offsetHeight || el.offsetWidth);
-		};
-		if (visibility(this)) return fn.apply(this);
-		var parent = this.getParent(),
-			restorers = [],
-			toMeasure = [];
-		while (!visibility(parent) && parent != document.body){
-			toMeasure.push(parent.expose());
-			parent = parent.getParent();
-		}
-		var restore = this.expose();
-		var result = fn.apply(this);
-		restore();
-		toMeasure.each(function(restore){
-			restore();
-		});
-		return result;
-	},
-
-	expose: function(){
-		if (this.getStyle('display') != 'none') return function(){};
-		var before = this.style.cssText;
-		this.setStyles({
-			display: 'block',
-			position: 'absolute',
-			visibility: 'hidden'
-		});
-		return function(){
-			this.style.cssText = before;
-		}.bind(this);
-	},
-
-	getDimensions: function(options){
-		options = Object.merge({computeSize: false}, options);
-		var dim = {x: 0, y: 0};
-
-		var getSize = function(el, options){
-			return (options.computeSize) ? el.getComputedSize(options) : el.getSize();
-		};
-
-		var parent = this.getParent('body');
-
-		if (parent && this.getStyle('display') == 'none'){
-			dim = this.measure(function(){
-				return getSize(this, options);
-			});
-		} else if (parent){
-			try { //safari sometimes crashes here, so catch it
-				dim = getSize(this, options);
-			}catch(e){}
-		}
-
-		return Object.append(dim, (dim.x || dim.x === 0) ? {
-				width: dim.x,
-				height: dim.y
-			} : {
-				x: dim.width,
-				y: dim.height
-			}
-		);
-	},
-
-	getComputedSize: function(options){
-
-
-		options = Object.merge({
-			styles: ['padding','border'],
-			planes: {
-				height: ['top','bottom'],
-				width: ['left','right']
-			},
-			mode: 'both'
-		}, options);
-
-		var styles = {},
-			size = {width: 0, height: 0};
-
-		if (options.mode == 'vertical'){
-			delete size.width;
-			delete options.planes.width;
-		} else if (options.mode == 'horizontal'){
-			delete size.height;
-			delete options.planes.height;
-		}
-
-
-		getStylesList(options.styles, options.planes).each(function(style){
-			styles[style] = this.getStyle(style).toInt();
-		}, this);
-
-		Object.each(options.planes, function(edges, plane){
-
-			var capitalized = plane.capitalize();
-			styles[plane] = this.getStyle(plane).toInt();
-			size['total' + capitalized] = styles[plane];
-
-			edges.each(function(edge){
-				var edgesize = calculateEdgeSize(edge, styles);
-				size['computed' + edge.capitalize()] = edgesize;
-				size['total' + capitalized] += edgesize;
-			});
-
-		}, this);
-
-		return Object.append(size, styles);
-	}
-
-});
 
 })();
 
@@ -2394,6 +3252,84 @@ Element.implement({
 /*
 ---
 
+script: Element.Shortcuts.js
+
+name: Element.Shortcuts
+
+description: Extends the Element native object to include some shortcut methods.
+
+license: MIT-style license
+
+authors:
+  - Aaron Newton
+
+requires:
+  - Core/Element.Style
+  - /MooTools.More
+
+provides: [Element.Shortcuts]
+
+...
+*/
+
+Element.implement({
+
+	isDisplayed: function(){
+		return this.getStyle('display') != 'none';
+	},
+
+	isVisible: function(){
+		var w = this.offsetWidth,
+			h = this.offsetHeight;
+		return (w == 0 && h == 0) ? false : (w > 0 && h > 0) ? true : this.style.display != 'none';
+	},
+
+	toggle: function(){
+		return this[this.isDisplayed() ? 'hide' : 'show']();
+	},
+
+	hide: function(){
+		var d;
+		try {
+			//IE fails here if the element is not in the dom
+			d = this.getStyle('display');
+		} catch(e){}
+		if (d == 'none') return this;
+		return this.store('element:_originalDisplay', d || '').setStyle('display', 'none');
+	},
+
+	show: function(display){
+		if (!display && this.isDisplayed()) return this;
+		display = display || this.retrieve('element:_originalDisplay') || 'block';
+		return this.setStyle('display', (display == 'none') ? 'block' : display);
+	},
+
+	swapClass: function(remove, add){
+		return this.removeClass(remove).addClass(add);
+	}
+
+});
+
+Document.implement({
+
+	clearSelection: function(){
+		if (window.getSelection){
+			var selection = window.getSelection();
+			if (selection && selection.removeAllRanges) selection.removeAllRanges();
+		} else if (document.selection && document.selection.empty){
+			try {
+				//IE fails here if selected element is not in dom
+				document.selection.empty();
+			} catch(e){}
+		}
+	}
+
+});
+
+
+/*
+---
+
 script: IframeShim.js
 
 name: IframeShim
@@ -2429,7 +3365,7 @@ var IframeShim = new Class({
 		zIndex: null,
 		margin: 0,
 		offset: {x: 0, y: 0},
-		browsers: ((Browser.ie && Browser.version == 6) || (Browser.firefox && Browser.version < 3 && Browser.Platform.mac))
+		browsers: (Browser.ie6 || (Browser.firefox && Browser.version < 3 && Browser.Platform.mac))
 	},
 
 	property: 'IframeShim',
@@ -2560,7 +3496,7 @@ var Mask = new Class({
 		onShow: function(){},
 		onHide: function(){},
 		onDestroy: function(){},
-		onClick: function(){},
+		onClick: function(event){},
 		inject: {
 			where: 'after',
 			target: null,
@@ -2587,12 +3523,12 @@ var Mask = new Class({
 		this.element = new Element('div', {
 			'class': this.options['class'],
 			id: this.options.id || 'mask-' + String.uniqueID(),
-			styles: Object.merge(this.options.style, {
+			styles: Object.merge({}, this.options.style, {
 				display: 'none'
 			}),
 			events: {
-				click: function(){
-					this.fireEvent('click');
+				click: function(event){
+					this.fireEvent('click', event);
 					if (this.options.hideOnClick) this.hide();
 				}.bind(this)
 			}
@@ -2607,7 +3543,7 @@ var Mask = new Class({
 
 	inject: function(target, where){
 		where = where || (this.options.inject ? this.options.inject.where : '') || this.target == document.body ? 'inside' : 'after';
-		target = target || (this.options.inject ? this.options.inject.target : '') || this.target;
+		target = target || (this.options.inject && this.options.inject.target) || this.target;
 
 		this.element.inject(target, where);
 
@@ -2643,6 +3579,7 @@ var Mask = new Class({
 
 		var dim = this.target.getComputedSize(opt);
 		if (this.target == document.body){
+			this.element.setStyles({width: 0, height: 0});
 			var win = window.getScrollSize();
 			if (dim.totalHeight < win.y) dim.totalHeight = win.y;
 			if (dim.totalWidth < win.x) dim.totalWidth = win.x;
@@ -2956,227 +3893,6 @@ Element.implement({
 /*
 ---
 
-name: Events.Pseudos
-
-description: Adds the functionallity to add pseudo events
-
-license: MIT-style license
-
-authors:
-  - Arian Stolwijk
-
-requires: [Core/Class.Extras, Core/Slick.Parser, More/MooTools.More]
-
-provides: [Events.Pseudos]
-
-...
-*/
-
-Events.Pseudos = function(pseudos, addEvent, removeEvent){
-
-	var storeKey = 'monitorEvents:';
-
-	var storageOf = function(object){
-
-		return {
-			store: object.store ? function(key, value){
-				object.store(storeKey + key, value);
-			} : function(key, value){
-				(object.$monitorEvents || (object.$monitorEvents = {}))[key] = value;
-			},
-			retrieve: object.retrieve ? function(key, dflt){
-				return object.retrieve(storeKey + key, dflt);
-			} : function(key, dflt){
-				if (!object.$monitorEvents) return dflt;
-				return object.$monitorEvents[key] || dflt;
-			}
-		};
-	};
-
-
-	var splitType = function(type){
-		if (type.indexOf(':') == -1) return null;
-
-		var parsed = Slick.parse(type).expressions[0][0],
-			parsedPseudos = parsed.pseudos;
-
-		return (pseudos && pseudos[parsedPseudos[0].key]) ? {
-			event: parsed.tag,
-			value: parsedPseudos[0].value,
-			pseudo: parsedPseudos[0].key,
-			original: type
-		} : null;
-	};
-
-
-	return {
-
-		addEvent: function(type, fn, internal){
-			var split = splitType(type);
-			if (!split) return addEvent.call(this, type, fn, internal);
-
-			var storage = storageOf(this),
-				events = storage.retrieve(type, []),
-				pseudoArgs = Array.from(pseudos[split.pseudo]),
-				proxy = pseudoArgs[1];
-
-			var self = this;
-			var monitor = function(){
-				pseudoArgs[0].call(self, split, fn, arguments, proxy);
-			};
-
-			events.include({event: fn, monitor: monitor});
-			storage.store(type, events);
-
-			var eventType = split.event;
-			if (proxy && proxy[eventType]) eventType = proxy[eventType].base;
-
-			addEvent.call(this, type, fn, internal);
-			return addEvent.call(this, eventType, monitor, internal);
-		},
-
-		removeEvent: function(type, fn){
-			var split = splitType(type);
-			if (!split) return removeEvent.call(this, type, fn);
-
-			var storage = storageOf(this),
-				events = storage.retrieve(type),
-				pseudoArgs = Array.from(pseudos[split.pseudo]),
-				proxy = pseudoArgs[1];
-
-			if (!events) return this;
-
-			var eventType = split.event;
-			if (proxy && proxy[eventType]) eventType = proxy[eventType].base;
-
-			removeEvent.call(this, type, fn);
-			events.each(function(monitor, i){
-				if (!fn || monitor.event == fn) removeEvent.call(this, eventType, monitor.monitor);
-				delete events[i];
-			}, this);
-
-			storage.store(type, events);
-			return this;
-		}
-
-	};
-
-};
-
-(function(){
-
-var pseudos = {
-
-	once: function(split, fn, args){
-		fn.apply(this, args);
-		this.removeEvent(split.original, fn);
-	}
-
-};
-
-Events.definePseudo = function(key, fn){
-	pseudos[key] = fn;
-};
-
-var proto = Events.prototype;
-Events.implement(Events.Pseudos(pseudos, proto.addEvent, proto.removeEvent));
-
-})();
-
-
-/*
----
-
-name: Element.Event.Pseudos
-
-description: Adds the functionality to add pseudo events for Elements
-
-license: MIT-style license
-
-authors:
-  - Arian Stolwijk
-
-requires: [Core/Element.Event, Events.Pseudos]
-
-provides: [Element.Event.Pseudos]
-
-...
-*/
-
-(function(){
-
-var pseudos = {
-
-	once: function(split, fn, args){
-		fn.apply(this, args);
-		this.removeEvent(split.original, fn);
-	}
-
-};
-
-Event.definePseudo = function(key, fn, proxy){
-	pseudos[key] = [fn, proxy];
-};
-
-var proto = Element.prototype;
-[Element, Window, Document].invoke('implement', Events.Pseudos(pseudos, proto.addEvent, proto.removeEvent));
-
-})();
-
-
-/*
----
-
-script: Element.Delegation.js
-
-name: Element.Delegation
-
-description: Extends the Element native object to include the delegate method for more efficient event management.
-
-credits:
-  - "Event checking based on the work of Daniel Steigerwald. License: MIT-style license. Copyright: Copyright (c) 2008 Daniel Steigerwald, daniel.steigerwald.cz"
-
-license: MIT-style license
-
-authors:
-  - Aaron Newton
-  - Daniel Steigerwald
-
-requires: [/MooTools.More, Element.Event.Pseudos]
-
-provides: [Element.Delegation]
-
-...
-*/
-
-
-Event.definePseudo('relay', function(split, fn, args, proxy){
-	var event = args[0];
-	var check = proxy ? proxy.condition : null;
-
-	for (var target = event.target; target && target != this; target = target.parentNode){
-		var finalTarget = document.id(target);
-		if (Slick.match(target, split.value) && (!check || check.call(finalTarget, event))){
-			if (finalTarget) fn.call(finalTarget, event, finalTarget);
-			return;
-		}
-	}
-
-}, {
-	mouseenter: {
-		base: 'mouseover',
-		condition: Element.Events.mouseenter.condition
-	},
-	mouseleave: {
-		base: 'mouseout',
-		condition: Element.Events.mouseleave.condition
-	}
-});
-
-
-/*
----
-
 script: Form.Request.js
 
 name: Form.Request
@@ -3211,10 +3927,10 @@ if (!window.Form) window.Form = {};
 
 		Implements: [Options, Events, Class.Occlude],
 
-		options: {
-			//onFailure: function(){},
-			//onSuccess: #function(){}, //aliased to onComplete,
-			//onSend: function(){}
+		options: {/*
+			onFailure: function(){},
+			onSuccess: function(){}, // aliased to onComplete,
+			onSend: function(){}*/
 			requestOptions: {
 				evalScripts: true,
 				useSpinner: true,
@@ -3236,7 +3952,9 @@ if (!window.Form) window.Form = {};
 			this.makeRequest();
 			if (this.options.resetForm){
 				this.request.addEvent('success', function(){
-					Function.attempt(function(){ this.element.reset(); }.bind(this));
+					Function.attempt(function(){
+						this.element.reset();
+					}.bind(this));
 					if (window.OverText) OverText.update();
 				}.bind(this));
 			}
@@ -3269,8 +3987,8 @@ if (!window.Form) window.Form = {};
 		},
 
 		attach: function(attach){
-			attach = attach != null ? attach : true;
-			method = attach ? 'addEvent' : 'removeEvent';
+			if (attach == null) attach = true;
+			var method = attach ? 'addEvent' : 'removeEvent';
 
 			this.element[method]('click:relay(button, input[type=submit])', this.saveClickedButton.bind(this));
 
@@ -3296,17 +4014,17 @@ if (!window.Form) window.Form = {};
 			return this;
 		},
 
-		onFormValidate: function(valid, form, e){
+		onFormValidate: function(valid, form, event){
 			//if there's no event, then this wasn't a submit event
-			if (!e) return;
+			if (!event) return;
 			var fv = this.element.retrieve('validator');
 			if (valid || (fv && !fv.options.stopOnFailure)){
-				if (e && e.stop) e.stop();
+				event.stop();
 				this.send();
 			}
 		},
 
-		onSubmit: function(e){
+		onSubmit: function(event){
 			var fv = this.element.retrieve('validator');
 			if (fv){
 				//form validator was created after Form.Request
@@ -3315,13 +4033,12 @@ if (!window.Form) window.Form = {};
 				this.element.validate();
 				return;
 			}
-			if (e) e.stop();
+			if (event) event.stop();
 			this.send();
 		},
 
 		saveClickedButton: function(event, target){
-			if (!this.options.sendButtonClicked) return;
-			if (!target.get('name')) return;
+			if (!this.options.sendButtonClicked || !target.get('name')) return;
 			this.options.extraData[target.get('name')] = target.get('value') || true;
 			this.clickedCleaner = function(){
 				delete this.options.extraData[target.get('name')];
@@ -3332,12 +4049,17 @@ if (!window.Form) window.Form = {};
 		clickedCleaner: function(){},
 
 		send: function(){
-			var str = this.element.toQueryString().trim();
-			var data = Object.toQueryString(this.options.extraData);
+			var str = this.element.toQueryString().trim(),
+				data = Object.toQueryString(this.options.extraData);
+
 			if (str) str += "&" + data;
 			else str = data;
+
 			this.fireEvent('send', [this.element, str.parseQueryString()]);
-			this.request.send({data: str, url: this.element.get("action")});
+			this.request.send({
+				data: str,
+				url: this.options.requestOptions.url || this.element.get('action')
+			});
 			this.clickedCleaner();
 			return this;
 		}
@@ -3347,9 +4069,9 @@ if (!window.Form) window.Form = {};
 	Element.Properties.formRequest = {
 
 		set: function(){
-			var opt = Array.link(arguments, {options: Type.isObject, update: Type.isElement, updateId: Type.isString});
-			var update = opt.update || opt.updateId;
-			var updater = this.retrieve('form.request');
+			var opt = Array.link(arguments, {options: Type.isObject, update: Type.isElement, updateId: Type.isString}),
+				update = opt.update || opt.updateId,
+				updater = this.retrieve('form.request');
 			if (update){
 				if (updater) updater.update = document.id(update);
 				this.store('form.request:update', update);
@@ -3362,8 +4084,8 @@ if (!window.Form) window.Form = {};
 		},
 
 		get: function(){
-			var opt = Array.link(arguments, {options: Type.isObject, update: Type.isElement, updateId: Type.isString});
-			var update = opt.update || opt.updateId;
+			var opt = Array.link(arguments, {options: Type.isObject, update: Type.isElement, updateId: Type.isString}),
+				update = opt.update || opt.updateId;
 			if (opt.options || update || !this.retrieve('form.request')){
 				if (opt.options || !this.retrieve('form.request:options')) this.set('form.request', opt.options);
 				if (update) this.set('form.request', update);
@@ -3389,81 +4111,6 @@ if (!window.Form) window.Form = {};
 /*
 ---
 
-script: Element.Shortcuts.js
-
-name: Element.Shortcuts
-
-description: Extends the Element native object to include some shortcut methods.
-
-license: MIT-style license
-
-authors:
-  - Aaron Newton
-
-requires:
-  - Core/Element.Style
-  - /MooTools.More
-
-provides: [Element.Shortcuts]
-
-...
-*/
-
-Element.implement({
-
-	isDisplayed: function(){
-		return this.getStyle('display') != 'none';
-	},
-
-	isVisible: function(){
-		var w = this.offsetWidth,
-			h = this.offsetHeight;
-		return (w == 0 && h == 0) ? false : (w > 0 && h > 0) ? true : this.style.display != 'none';
-	},
-
-	toggle: function(){
-		return this[this.isDisplayed() ? 'hide' : 'show']();
-	},
-
-	hide: function(){
-		var d;
-		try {
-			//IE fails here if the element is not in the dom
-			d = this.getStyle('display');
-		} catch(e){}
-		if (d == 'none') return this;
-		return this.store('element:_originalDisplay', d || '').setStyle('display', 'none');
-	},
-
-	show: function(display){
-		if (!display && this.isDisplayed()) return this;
-		display = display || this.retrieve('element:_originalDisplay') || 'block';
-		return this.setStyle('display', (display == 'none') ? 'block' : display);
-	},
-
-	swapClass: function(remove, add){
-		return this.removeClass(remove).addClass(add);
-	}
-
-});
-
-Document.implement({
-
-	clearSelection: function(){
-		if (document.selection && document.selection.empty){
-			document.selection.empty();
-		} else if (window.getSelection){
-			var selection = window.getSelection();
-			if (selection && selection.removeAllRanges) selection.removeAllRanges();
-		}
-	}
-
-});
-
-
-/*
----
-
 script: Fx.Reveal.js
 
 name: Fx.Reveal
@@ -3484,6 +4131,22 @@ provides: [Fx.Reveal]
 
 ...
 */
+
+(function(){
+
+
+var hideTheseOf = function(object){
+	var hideThese = object.options.hideInputs;
+	if (window.OverText){
+		var otClasses = [null];
+		OverText.each(function(ot){
+			otClasses.include('.' + ot.options.labelClass);
+		});
+		if (otClasses) hideThese += otClasses.join(', ');
+	}
+	return (hideThese) ? object.element.getElements(hideThese) : null;
+};
+
 
 Fx.Reveal = new Class({
 
@@ -3530,7 +4193,7 @@ Fx.Reveal = new Class({
 					overflow: 'hidden'
 				});
 
-				var hideThese = this.options.hideInputs ? this.element.getElements(this.options.hideInputs) : null;
+				var hideThese = hideTheseOf(this);
 				if (hideThese) hideThese.setStyle('visibility', 'hidden');
 
 				this.$chain.unshift(function(){
@@ -3592,7 +4255,7 @@ Fx.Reveal = new Class({
 
 				this.element.setStyles(zero);
 
-				var hideThese = this.options.hideInputs ? this.element.getElements(this.options.hideInputs) : null;
+				var hideThese = hideTheseOf(this);
 				if (hideThese) hideThese.setStyle('visibility', 'hidden');
 
 				this.$chain.unshift(function(){
@@ -3630,7 +4293,7 @@ Fx.Reveal = new Class({
 
 	cancel: function(){
 		this.parent.apply(this, arguments);
-		this.element.style.cssText = this.cssText;
+		if (this.cssText != null) this.element.style.cssText = this.cssText;
 		this.hiding = false;
 		this.showing = false;
 		return this;
@@ -3690,47 +4353,7 @@ Element.implement({
 
 });
 
-
-/*
----
-
-script: Elements.From.js
-
-name: Elements.From
-
-description: Returns a collection of elements from a string of html.
-
-license: MIT-style license
-
-authors:
-  - Aaron Newton
-
-requires:
-  - Core/String
-  - Core/Element
-  - /MooTools.More
-
-provides: [Elements.from, Elements.From]
-
-...
-*/
-
-Elements.from = function(text, excludeScripts){
-	if (excludeScripts || excludeScripts == null) text = text.stripScripts();
-
-	var container, match = text.match(/^\s*<(t[dhr]|tbody|tfoot|thead)/i);
-
-	if (match){
-		container = new Element('table');
-		var tag = match[1].toLowerCase();
-		if (['td', 'th', 'tr'].contains(tag)){
-			container = new Element('tbody').inject(container);
-			if (tag != 'tr') container = new Element('tr').inject(container);
-		}
-	}
-
-	return (container || new Element('div')).set('html', text).getChildren();
-};
+})();
 
 
 /*
@@ -3814,283 +4437,6 @@ Form.Request.Append = new Class({
 /*
 ---
 
-script: String.Extras.js
-
-name: String.Extras
-
-description: Extends the String native object to include methods useful in managing various kinds of strings (query strings, urls, html, etc).
-
-license: MIT-style license
-
-authors:
-  - Aaron Newton
-  - Guillermo Rauch
-  - Christopher Pitt
-
-requires:
-  - Core/String
-  - Core/Array
-
-provides: [String.Extras]
-
-...
-*/
-
-(function(){
-
-var special = {
-	'a': /[àáâãäåăą]/g,
-	'A': /[ÀÁÂÃÄÅĂĄ]/g,
-	'c': /[ćčç]/g,
-	'C': /[ĆČÇ]/g,
-	'd': /[ďđ]/g,
-	'D': /[ĎÐ]/g,
-	'e': /[èéêëěę]/g,
-	'E': /[ÈÉÊËĚĘ]/g,
-	'g': /[ğ]/g,
-	'G': /[Ğ]/g,
-	'i': /[ìíîï]/g,
-	'I': /[ÌÍÎÏ]/g,
-	'l': /[ĺľł]/g,
-	'L': /[ĹĽŁ]/g,
-	'n': /[ñňń]/g,
-	'N': /[ÑŇŃ]/g,
-	'o': /[òóôõöøő]/g,
-	'O': /[ÒÓÔÕÖØ]/g,
-	'r': /[řŕ]/g,
-	'R': /[ŘŔ]/g,
-	's': /[ššş]/g,
-	'S': /[ŠŞŚ]/g,
-	't': /[ťţ]/g,
-	'T': /[ŤŢ]/g,
-	'ue': /[ü]/g,
-	'UE': /[Ü]/g,
-	'u': /[ùúûůµ]/g,
-	'U': /[ÙÚÛŮ]/g,
-	'y': /[ÿý]/g,
-	'Y': /[ŸÝ]/g,
-	'z': /[žźż]/g,
-	'Z': /[ŽŹŻ]/g,
-	'th': /[þ]/g,
-	'TH': /[Þ]/g,
-	'dh': /[ð]/g,
-	'DH': /[Ð]/g,
-	'ss': /[ß]/g,
-	'oe': /[œ]/g,
-	'OE': /[Œ]/g,
-	'ae': /[æ]/g,
-	'AE': /[Æ]/g
-},
-
-tidy = {
-	' ': /[\xa0\u2002\u2003\u2009]/g,
-	'*': /[\xb7]/g,
-	'\'': /[\u2018\u2019]/g,
-	'"': /[\u201c\u201d]/g,
-	'...': /[\u2026]/g,
-	'-': /[\u2013]/g,
-//	'--': /[\u2014]/g,
-	'&raquo;': /[\uFFFD]/g
-};
-
-var walk = function(string, replacements){
-	var result = string;
-	for (key in replacements) result = result.replace(replacements[key], key);
-	return result;
-};
-
-var getRegexForTag = function(tag, contents){
-	tag = tag || '';
-	var regstr = contents ? "<" + tag + "(?!\\w)[^>]*>([\\s\\S]*?)<\/" + tag + "(?!\\w)>" : "<\/?" + tag + "([^>]+)?>";
-	reg = new RegExp(regstr, "gi");
-	return reg;
-};
-
-String.implement({
-
-	standardize: function(){
-		return walk(this, special);
-	},
-
-	repeat: function(times){
-		return new Array(times + 1).join(this);
-	},
-
-	pad: function(length, str, direction){
-		if (this.length >= length) return this;
-
-		var pad = (str == null ? ' ' : '' + str)
-			.repeat(length - this.length)
-			.substr(0, length - this.length);
-
-		if (!direction || direction == 'right') return this + pad;
-		if (direction == 'left') return pad + this;
-
-		return pad.substr(0, (pad.length / 2).floor()) + this + pad.substr(0, (pad.length / 2).ceil());
-	},
-
-	getTags: function(tag, contents){
-		return this.match(getRegexForTag(tag, contents)) || [];
-	},
-
-	stripTags: function(tag, contents){
-		return this.replace(getRegexForTag(tag, contents), '');
-	},
-
-	tidy: function(){
-		return walk(this, tidy);
-	}
-
-});
-
-})();
-
-
-/*
----
-
-script: Element.Forms.js
-
-name: Element.Forms
-
-description: Extends the Element native object to include methods useful in managing inputs.
-
-license: MIT-style license
-
-authors:
-  - Aaron Newton
-
-requires:
-  - Core/Element
-  - /String.Extras
-  - /MooTools.More
-
-provides: [Element.Forms]
-
-...
-*/
-
-Element.implement({
-
-	tidy: function(){
-		this.set('value', this.get('value').tidy());
-	},
-
-	getTextInRange: function(start, end){
-		return this.get('value').substring(start, end);
-	},
-
-	getSelectedText: function(){
-		if (this.setSelectionRange) return this.getTextInRange(this.getSelectionStart(), this.getSelectionEnd());
-		return document.selection.createRange().text;
-	},
-
-	getSelectedRange: function(){
-		if (this.selectionStart != null){
-			return {
-				start: this.selectionStart,
-				end: this.selectionEnd
-			};
-		}
-
-		var pos = {
-			start: 0,
-			end: 0
-		};
-		var range = this.getDocument().selection.createRange();
-		if (!range || range.parentElement() != this) return pos;
-		var duplicate = range.duplicate();
-
-		if (this.type == 'text'){
-			pos.start = 0 - duplicate.moveStart('character', -100000);
-			pos.end = pos.start + range.text.length;
-		} else {
-			var value = this.get('value');
-			var offset = value.length;
-			duplicate.moveToElementText(this);
-			duplicate.setEndPoint('StartToEnd', range);
-			if (duplicate.text.length) offset -= value.match(/[\n\r]*$/)[0].length;
-			pos.end = offset - duplicate.text.length;
-			duplicate.setEndPoint('StartToStart', range);
-			pos.start = offset - duplicate.text.length;
-		}
-		return pos;
-	},
-
-	getSelectionStart: function(){
-		return this.getSelectedRange().start;
-	},
-
-	getSelectionEnd: function(){
-		return this.getSelectedRange().end;
-	},
-
-	setCaretPosition: function(pos){
-		if (pos == 'end') pos = this.get('value').length;
-		this.selectRange(pos, pos);
-		return this;
-	},
-
-	getCaretPosition: function(){
-		return this.getSelectedRange().start;
-	},
-
-	selectRange: function(start, end){
-		if (this.setSelectionRange){
-			this.focus();
-			this.setSelectionRange(start, end);
-		} else {
-			var value = this.get('value');
-			var diff = value.substr(start, end - start).replace(/\r/g, '').length;
-			start = value.substr(0, start).replace(/\r/g, '').length;
-			var range = this.createTextRange();
-			range.collapse(true);
-			range.moveEnd('character', start + diff);
-			range.moveStart('character', start);
-			range.select();
-		}
-		return this;
-	},
-
-	insertAtCursor: function(value, select){
-		var pos = this.getSelectedRange();
-		var text = this.get('value');
-		this.set('value', text.substring(0, pos.start) + value + text.substring(pos.end, text.length));
-		if (select !== false) this.selectRange(pos.start, pos.start + value.length);
-		else this.setCaretPosition(pos.start + value.length);
-		return this;
-	},
-
-	insertAroundCursor: function(options, select){
-		options = Object.append({
-			before: '',
-			defaultMiddle: '',
-			after: ''
-		}, options);
-
-		var value = this.getSelectedText() || options.defaultMiddle;
-		var pos = this.getSelectedRange();
-		var text = this.get('value');
-
-		if (pos.start == pos.end){
-			this.set('value', text.substring(0, pos.start) + options.before + value + options.after + text.substring(pos.end, text.length));
-			this.selectRange(pos.start + options.before.length, pos.end + options.before.length + value.length);
-		} else {
-			var current = text.substring(pos.start, pos.end);
-			this.set('value', text.substring(0, pos.start) + options.before + current + options.after + text.substring(pos.end, text.length));
-			var selStart = pos.start + options.before.length;
-			if (select !== false) this.selectRange(selStart, selStart + current.length);
-			else this.setCaretPosition(selStart + text.length);
-		}
-		return this;
-	}
-
-});
-
-
-/*
----
-
 name: Locale.en-US.Form.Validator
 
 description: Form Validator messages for English.
@@ -4121,7 +4467,7 @@ Locale.define('en-US', 'FormValidator', {
 	dateSuchAs: 'Please enter a valid date such as {date}',
 	dateInFormatMDY: 'Please enter a valid date such as MM/DD/YYYY (i.e. "12/31/1999")',
 	email: 'Please enter a valid email address. For example "fred@domain.com".',
-	url: 'Please enter a valid URL such as http://www.google.com.',
+	url: 'Please enter a valid URL such as http://www.example.com.',
 	currencyDollar: 'Please enter a valid $ amount. For example $100.00 .',
 	oneRequired: 'Please enter something for at least one of these inputs.',
 	errorPrefix: 'Error: ',
@@ -4211,6 +4557,14 @@ var InputValidator = new Class({
 
 });
 
+Element.Properties.validators = {
+
+	get: function(){
+		return (this.get('data-validators') || this.className).clean().split(' ');
+	}
+
+};
+
 Element.Properties.validatorProps = {
 
 	set: function(props){
@@ -4220,14 +4574,14 @@ Element.Properties.validatorProps = {
 	get: function(props){
 		if (props) this.set(props);
 		if (this.retrieve('$moo:validatorProps')) return this.retrieve('$moo:validatorProps');
-		if (this.getProperty('$moo:validatorProps')){
+		if (this.getProperty('data-validator-properties') || this.getProperty('validatorProps')){
 			try {
-				this.store('$moo:validatorProps', JSON.decode(this.getProperty('$moo:validatorProps')));
+				this.store('$moo:validatorProps', JSON.decode(this.getProperty('validatorProps') || this.getProperty('data-validator-properties')));
 			}catch(e){
 				return {};
 			}
 		} else {
-			var vals = this.get('class').split(' ').filter(function(cls){
+			var vals = this.get('validators').filter(function(cls){
 				return cls.test(':');
 			});
 			if (!vals.length){
@@ -4339,15 +4693,16 @@ Form.Validator = new Class({
 			warned = this.element.getElement('.warning');
 		}
 		if (field && (!failed || force || field.hasClass('validation-failed') || (failed && !this.options.serial))){
-			var validators = field.className.split(' ').some(function(cn){
+			var validationTypes = field.get('validators');
+			var validators = validationTypes.some(function(cn){
 				return this.getValidator(cn);
 			}, this);
 			var validatorsFailed = [];
-			field.className.split(' ').each(function(className){
+			validationTypes.each(function(className){
 				if (className && !this.test(className, field)) validatorsFailed.include(className);
 			}, this);
 			passed = validatorsFailed.length === 0;
-			if (validators && !field.hasClass('warnOnly')){
+			if (validators && !this.hasValidator(field,'warnOnly')){
 				if (passed){
 					field.addClass('validation-passed').removeClass('validation-failed');
 					this.fireEvent('elementPass', field);
@@ -4357,14 +4712,14 @@ Form.Validator = new Class({
 				}
 			}
 			if (!warned){
-				var warnings = field.className.split(' ').some(function(cn){
-					if (cn.test('^warn-') || field.hasClass('warnOnly'))
+				var warnings = validationTypes.some(function(cn){
+					if (cn.test('^warn'))
 						return this.getValidator(cn.replace(/^warn-/,''));
 					else return null;
 				}, this);
 				field.removeClass('warning');
-				var warnResult = field.className.split(' ').map(function(cn){
-					if (cn.test('^warn-') || field.hasClass('warnOnly'))
+				var warnResult = validationTypes.map(function(cn){
+					if (cn.test('^warn'))
 						return this.test(cn.replace(/^warn-/,''), field, true);
 					else return null;
 				}, this);
@@ -4378,17 +4733,21 @@ Form.Validator = new Class({
 		if ((this.options.ignoreHidden && !field.isVisible()) || (this.options.ignoreDisabled && field.get('disabled'))) return true;
 		var validator = this.getValidator(className);
 		warn = warn != null ? warn : false;
-		if (field.hasClass('warnOnly')) warn = true;
-		var isValid = field.hasClass('ignoreValidation') || (validator ? validator.test(field) : true);
-		if (validator) this.fireEvent('elementValidate', [isValid, field, className, warn]);
+		if (this.hasValidator(field, 'warnOnly')) warn = true;
+		var isValid = this.hasValidator(field, 'ignoreValidation') || (validator ? validator.test(field) : true);
+		if (validator && field.isVisible()) this.fireEvent('elementValidate', [isValid, field, className, warn]);
 		if (warn) return true;
 		return isValid;
+	},
+
+	hasValidator: function(field, value){
+		return field.get('validators').contains(value);
 	},
 
 	resetField: function(field){
 		field = document.id(field);
 		if (field){
-			field.className.split(' ').each(function(className){
+			field.get('validators').each(function(className){
 				if (className.test('^warn-')) className = className.replace(/^warn-/, '');
 				field.removeClass('validation-failed');
 				field.removeClass('warning');
@@ -4505,8 +4864,7 @@ Form.Validator.addAllThese([
 			else return '';
 		},
 		test: function(element, props){
-			//if the value is <= than the maxLength value, element passes test
-			return (element.get('value').length <= (props.maxLength || 10000));
+			return element.get('value').length <= (props.maxLength || 10000);
 		}
 	}],
 
@@ -4557,28 +4915,40 @@ Form.Validator.addAllThese([
 		},
 		test: function(element, props){
 			if (Form.Validator.getValidator('IsEmpty').test(element)) return true;
-			var d;
-			if (Date.parse){
-				var format = props.dateFormat || '%x';
-				d = Date.parse(element.get('value'));
-				var formatted = d.format(format);
+			var dateLocale = Locale.getCurrent().sets.Date,
+				dateNouns = new RegExp([dateLocale.days, dateLocale.days_abbr, dateLocale.months, dateLocale.months_abbr].flatten().join('|'), 'i'),
+				value = element.get('value'),
+				wordsInValue = value.match(/[a-z]+/gi);
+
+				if (wordsInValue && !wordsInValue.every(dateNouns.exec, dateNouns)) return false;
+
+				var date = Date.parse(value),
+					format = props.dateFormat || '%x',
+					formatted = date.format(format);
+
 				if (formatted != 'invalid date') element.set('value', formatted);
-				return !isNaN(d);
-			} else {
-				var regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
-				if (!regex.test(element.get('value'))) return false;
-				d = new Date(element.get('value').replace(regex, '$1/$2/$3'));
-				return (parseInt(RegExp.$1, 10) == (1 + d.getMonth())) &&
-					(parseInt(RegExp.$2, 10) == d.getDate()) &&
-					(parseInt(RegExp.$3, 10) == d.getFullYear());
-			}
+				return date.isValid();
 		}
 	}],
 
 	['validate-email', {
 		errorMsg: Form.Validator.getMsg.pass('email'),
 		test: function(element){
-			return Form.Validator.getValidator('IsEmpty').test(element) || (/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i).test(element.get('value'));
+			/*
+			var chars = "[a-z0-9!#$%&'*+/=?^_`{|}~-]",
+				local = '(?:' + chars + '\\.?){0,63}' + chars,
+
+				label = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?',
+				hostname = '(?:' + label + '\\.)*' + label;
+
+				octet = '(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)',
+				ipv4 = '\\[(?:' + octet + '\\.){3}' + octet + '\\]',
+
+				domain = '(?:' + hostname + '|' + ipv4 + ')';
+
+			var regex = new RegExp('^' + local + '@' + domain + '$', 'i');
+			*/
+			return Form.Validator.getValidator('IsEmpty').test(element) || (/^(?:[a-z0-9!#$%&'*+\/=?^_`{|}~-]\.?){0,63}[a-z0-9!#$%&'*+\/=?^_`{|}~-]@(?:(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\])$/i).test(element.get('value'));
 		}
 	}],
 
@@ -4592,10 +4962,6 @@ Form.Validator.addAllThese([
 	['validate-currency-dollar', {
 		errorMsg: Form.Validator.getMsg.pass('currencyDollar'),
 		test: function(element){
-			// [$]1[##][,###]+[.##]
-			// [$]1###+[.##]
-			// [$]0.##
-			// [$].##
 			return Form.Validator.getValidator('IsEmpty').test(element) || (/^\$?\-?([1-9]{1}[0-9]{0,2}(\,[0-9]{3})*(\.[0-9]{0,2})?|[1-9]{1}\d*(\.[0-9]{0,2})?|0(\.[0-9]{0,2})?|(\.[0-9]{1,2})?)$/).test(element.get('value'));
 		}
 	}],
@@ -4639,6 +5005,8 @@ Element.implement({
 	}
 
 });
+
+
 
 
 
@@ -4754,7 +5122,7 @@ Form.Validator.Inline = new Class({
 		field = document.id(field);
 		if (!field) return this;
 		this.parent(field);
-		field.className.split(' ').each(function(className){
+		field.get('validators').each(function(className){
 			this.hideAdvice(className, field);
 		}, this);
 		return this;
@@ -4763,7 +5131,7 @@ Form.Validator.Inline = new Class({
 	getAllAdviceMessages: function(field, force){
 		var advice = [];
 		if (field.hasClass('ignoreValidation') && !force) return advice;
-		var validators = field.className.split(' ').some(function(cn){
+		var validators = field.get('validators').some(function(cn){
 			var warner = cn.test('^warn-') || field.hasClass('warnOnly');
 			if (warner) cn = cn.replace(/^warn-/, '');
 			var validator = this.getValidator(cn);
@@ -5080,10 +5448,10 @@ requires:
   - Core/Options
   - Core/Events
   - Core/Element.Event
-  - /Class.Binds
-  - /Class.Occlude
-  - /Element.Position
-  - /Element.Shortcuts
+  - Class.Binds
+  - Class.Occlude
+  - Element.Position
+  - Element.Shortcuts
 
 provides: [OverText]
 
@@ -5102,6 +5470,7 @@ var OverText = new Class({
 		onTextHide: function(textEl, inputEl){},
 		onTextShow: function(textEl, inputEl){}, */
 		element: 'label',
+		labelClass: 'overTxtLabel',
 		positionOptions: {
 			position: 'upperLeft',
 			edge: 'upperLeft',
@@ -5118,13 +5487,15 @@ var OverText = new Class({
 	property: 'OverText',
 
 	initialize: function(element, options){
-		this.element = document.id(element);
+		var element = this.element = document.id(element);
+
 		if (this.occlude()) return this.occluded;
 		this.setOptions(options);
-		this.attach(this.element);
+
+		this.attach(element);
 		OverText.instances.push(this);
+
 		if (this.options.poll) this.poll();
-		return this;
 	},
 
 	toElement: function(){
@@ -5132,40 +5503,44 @@ var OverText = new Class({
 	},
 
 	attach: function(){
-		var val = this.options.textOverride || this.element.get('alt') || this.element.get('title');
-		if (!val) return;
-		this.text = new Element(this.options.element, {
-			'class': 'overTxtLabel',
+		var element = this.element,
+			options = this.options,
+			value = options.textOverride || element.get('alt') || element.get('title');
+
+		if (!value) return this;
+
+		var text = this.text = new Element(options.element, {
+			'class': options.labelClass,
 			styles: {
 				lineHeight: 'normal',
 				position: 'absolute',
 				cursor: 'text'
 			},
-			html: val,
+			html: value,
 			events: {
-				click: this.hide.pass(this.options.element == 'label', this)
+				click: this.hide.pass(options.element == 'label', this)
 			}
-		}).inject(this.element, 'after');
-		if (this.options.element == 'label'){
-			if (!this.element.get('id')) this.element.set('id', 'input_' + new Date().getTime());
-			this.text.set('for', this.element.get('id'));
+		}).inject(element, 'after');
+
+		if (options.element == 'label'){
+			if (!element.get('id')) element.set('id', 'input_' + String.uniqueID());
+			text.set('for', element.get('id'));
 		}
 
-		if (this.options.wrap){
-			this.textHolder = new Element('div', {
+		if (options.wrap){
+			this.textHolder = new Element('div.overTxtWrapper', {
 				styles: {
 					lineHeight: 'normal',
 					position: 'relative'
-				},
-				'class':'overTxtWrapper'
-			}).adopt(this.text).inject(this.element, 'before');
+				}
+			}).grab(text).inject(element, 'before');
 		}
 
 		return this.enable();
 	},
 
 	destroy: function(){
-		this.element.eliminate('OverTextDiv').eliminate('OverText');
+		this.element.eliminate(this.property); // Class.Occlude storage
 		this.disable();
 		if (this.text) this.text.destroy();
 		if (this.textHolder) this.textHolder.destroy();
@@ -5197,7 +5572,7 @@ var OverText = new Class({
 
 	wrap: function(){
 		if (this.options.element == 'label'){
-			if (!this.element.get('id')) this.element.set('id', 'input_' + new Date().getTime());
+			if (!this.element.get('id')) this.element.set('id', 'input_' + String.uniqueID());
 			this.text.set('for', this.element.get('id'));
 		}
 	},
@@ -5212,11 +5587,14 @@ var OverText = new Class({
 		//pause on focus
 		//resumeon blur
 		if (this.poller && !stop) return this;
-		var test = function(){
-			if (!this.pollingPaused) this.assert(true);
-		}.bind(this);
-		if (stop) clearInterval(this.poller);
-		else this.poller = test.periodical(this.options.pollInterval, this);
+		if (stop){
+			clearInterval(this.poller);
+		} else {
+			this.poller = (function(){
+				if (!this.pollingPaused) this.assert(true);
+			}).periodical(this.options.pollInterval, this);
+		}
+
 		return this;
 	},
 
@@ -5226,8 +5604,8 @@ var OverText = new Class({
 	},
 
 	focus: function(){
-		if (this.text && (!this.text.isDisplayed() || this.element.get('disabled'))) return;
-		this.hide();
+		if (this.text && (!this.text.isDisplayed() || this.element.get('disabled'))) return this;
+		return this.hide();
 	},
 
 	hide: function(suppressFocus, force){
@@ -5255,19 +5633,22 @@ var OverText = new Class({
 		return this;
 	},
 
-	assert: function(suppressFocus){
-		this[this.test() ? 'show' : 'hide'](suppressFocus);
+	test: function(){
+		return !this.element.get('value');
 	},
 
-	test: function(){
-		var v = this.element.get('value');
-		return !v;
+	assert: function(suppressFocus){
+		return this[this.test() ? 'show' : 'hide'](suppressFocus);
 	},
 
 	reposition: function(){
 		this.assert(true);
 		if (!this.element.isVisible()) return this.stopPolling().hide();
-		if (this.text && this.test()) this.text.position(Object.merge(this.options.positionOptions, {relativeTo: this.element}));
+		if (this.text && this.test()){
+			this.text.position(Object.merge(this.options.positionOptions, {
+				relativeTo: this.element
+			}));
+		}
 		return this;
 	}
 
@@ -5278,9 +5659,8 @@ OverText.instances = [];
 Object.append(OverText, {
 
 	each: function(fn){
-		return OverText.instances.map(function(ot, i){
-			if (ot.element && ot.text) return fn.apply(OverText, [ot, i]);
-			return null; //the input or the text was destroyed
+		return OverText.instances.each(function(ot, i){
+			if (ot.element && ot.text) fn.call(OverText, ot, i);
 		});
 	},
 
@@ -5308,11 +5688,6 @@ Object.append(OverText, {
 
 });
 
-if (window.Fx && Fx.Reveal){
-	Fx.Reveal.implement({
-		hideInputs: Browser.ie ? 'select, input, textarea, object, embed, .overTxtLabel' : false
-	});
-}
 
 
 /*
@@ -5431,7 +5806,7 @@ Fx.Accordion = new Class({
 		alwaysHide: false,
 		trigger: 'click',
 		initialDisplayFx: true,
-		returnHeightToAuto: true
+		resetHeight: true
 	},
 
 	initialize: function(){
@@ -5447,43 +5822,45 @@ Fx.Accordion = new Class({
 		});
 		this.parent(params.elements, params.options);
 
-		this.togglers = $$(params.togglers);
+		var options = this.options,
+			togglers = this.togglers = $$(params.togglers);
+
 		this.previous = -1;
 		this.internalChain = new Chain();
 
-		if (this.options.alwaysHide) this.options.wait = true;
+		if (options.alwaysHide) this.options.link = 'chain';
 
-		if (this.options.show || this.options.show === 0){
-			this.options.display = false;
-			this.previous = this.options.show;
+		if (options.show || this.options.show === 0){
+			options.display = false;
+			previous = this.options.show;
 		}
 
-		if (this.options.start){
-			this.options.display = false;
-			this.options.show = false;
+		if (options.start){
+			options.display = false;
+			options.show = false;
 		}
 
-		this.effects = {};
+		var effects = this.effects = {};
 
-		if (this.options.opacity) this.effects.opacity = 'fullOpacity';
-		if (this.options.width) this.effects.width = this.options.fixedWidth ? 'fullWidth' : 'offsetWidth';
-		if (this.options.height) this.effects.height = this.options.fixedHeight ? 'fullHeight' : 'scrollHeight';
+		if (options.opacity) effects.opacity = 'fullOpacity';
+		if (options.width) effects.width = options.fixedWidth ? 'fullWidth' : 'offsetWidth';
+		if (options.height) effects.height = options.fixedHeight ? 'fullHeight' : 'scrollHeight';
 
-		for (var i = 0, l = this.togglers.length; i < l; i++) this.addSection(this.togglers[i], this.elements[i]);
+		for (var i = 0, l = togglers.length; i < l; i++) this.addSection(togglers[i], this.elements[i]);
 
 		this.elements.each(function(el, i){
-			if (this.options.show === i){
-				this.fireEvent('active', [this.togglers[i], el]);
+			if (options.show === i){
+				this.fireEvent('active', [togglers[i], el]);
 			} else {
-				for (var fx in this.effects) el.setStyle(fx, 0);
+				for (var fx in effects) el.setStyle(fx, 0);
 			}
 		}, this);
 
-		if (this.options.display || this.options.display === 0 || this.options.initialDisplayFx === false){
-			this.display(this.options.display, this.options.initialDisplayFx);
+		if (options.display || options.display === 0 || options.initialDisplayFx === false){
+			this.display(options.display, options.initialDisplayFx);
 		}
 
-		if (this.options.fixedHeight !== false) this.options.returnHeightToAuto = false;
+		if (options.fixedHeight !== false) options.resetHeight = false;
 		this.addEvent('complete', this.internalChain.callChain.bind(this.internalChain));
 	},
 
@@ -5493,32 +5870,36 @@ Fx.Accordion = new Class({
 		this.togglers.include(toggler);
 		this.elements.include(element);
 
-		var test = this.togglers.contains(toggler);
-		var idx = this.togglers.indexOf(toggler);
-		var displayer = this.display.pass(idx, this);
+		var togglers = this.togglers,
+			options = this.options,
+			test = togglers.contains(toggler),
+			idx = togglers.indexOf(toggler),
+			displayer = this.display.pass(idx, this);
 
 		toggler.store('accordion:display', displayer)
-			.addEvent(this.options.trigger, displayer);
+			.addEvent(options.trigger, displayer);
 
-		if (this.options.height) element.setStyles({'padding-top': 0, 'border-top': 'none', 'padding-bottom': 0, 'border-bottom': 'none'});
-		if (this.options.width) element.setStyles({'padding-left': 0, 'border-left': 'none', 'padding-right': 0, 'border-right': 'none'});
+		if (options.height) element.setStyles({'padding-top': 0, 'border-top': 'none', 'padding-bottom': 0, 'border-bottom': 'none'});
+		if (options.width) element.setStyles({'padding-left': 0, 'border-left': 'none', 'padding-right': 0, 'border-right': 'none'});
 
 		element.fullOpacity = 1;
-		if (this.options.fixedWidth) element.fullWidth = this.options.fixedWidth;
-		if (this.options.fixedHeight) element.fullHeight = this.options.fixedHeight;
+		if (options.fixedWidth) element.fullWidth = options.fixedWidth;
+		if (options.fixedHeight) element.fullHeight = options.fixedHeight;
 		element.setStyle('overflow', 'hidden');
 
-		if (!test){
-			for (var fx in this.effects) element.setStyle(fx, 0);
+		if (!test) for (var fx in this.effects){
+			element.setStyle(fx, 0);
 		}
 		return this;
 	},
 
 	removeSection: function(toggler, displayIndex){
-		var idx = this.togglers.indexOf(toggler);
-		var element = this.elements[idx];
+		var togglers = this.togglers,
+			idx = togglers.indexOf(toggler),
+			element = this.elements[idx];
+
 		var remover = function(){
-			this.togglers.erase(toggler);
+			togglers.erase(toggler);
 			this.elements.erase(element);
 			this.detach(toggler);
 		}.bind(this);
@@ -5543,41 +5924,50 @@ Fx.Accordion = new Class({
 
 	display: function(index, useFx){
 		if (!this.check(index, useFx)) return this;
-		useFx = useFx != null ? useFx : true;
-		index = (typeOf(index) == 'element') ? this.elements.indexOf(index) : index;
-		if (index == this.previous && !this.options.alwaysHide) return this;
-		if (this.options.returnHeightToAuto){
-			var prev = this.elements[this.previous];
+
+		var obj = {},
+			elements = this.elements,
+			options = this.options,
+			effects = this.effects;
+
+		if (useFx == null) useFx = true;
+		if (typeOf(index) == 'element') index = elements.indexOf(index);
+		if (index == this.previous && !options.alwaysHide) return this;
+
+		if (options.resetHeight){
+			var prev = elements[this.previous];
 			if (prev && !this.selfHidden){
-				for (var fx in this.effects){
-					prev.setStyle(fx, prev[this.effects[fx]]);
-				}
+				for (var fx in effects) prev.setStyle(fx, prev[effects[fx]]);
 			}
 		}
 
-		if ((this.timer && this.options.wait) || (index === this.previous && !this.options.alwaysHide)) return this;
+		if ((this.timer && options.link == 'chain') || (index === this.previous && !options.alwaysHide)) return this;
+
 		this.previous = index;
-		var obj = {};
-		this.elements.each(function(el, i){
+		this.selfHidden = false;
+
+		elements.each(function(el, i){
 			obj[i] = {};
 			var hide;
 			if (i != index){
 				hide = true;
-			} else if (this.options.alwaysHide && ((el.offsetHeight > 0 && this.options.height) || el.offsetWidth > 0 && this.options.width)){
+			} else if (options.alwaysHide && ((el.offsetHeight > 0 && options.height) || el.offsetWidth > 0 && options.width)){
 				hide = true;
 				this.selfHidden = true;
 			}
 			this.fireEvent(hide ? 'background' : 'active', [this.togglers[i], el]);
-			for (var fx in this.effects) obj[i][fx] = hide ? 0 : el[this.effects[fx]];
+			for (var fx in effects) obj[i][fx] = hide ? 0 : el[effects[fx]];
+			if (!useFx && !hide && options.resetHeight) obj[i]['height'] = 'auto';
 		}, this);
 
 		this.internalChain.clearChain();
 		this.internalChain.chain(function(){
-			if (this.options.returnHeightToAuto && !this.selfHidden){
-				var el = this.elements[index];
+			if (options.resetHeight && !this.selfHidden){
+				var el = elements[index];
 				if (el) el.setStyle('height', 'auto');
 			};
 		}.bind(this));
+
 		return useFx ? this.start(obj) : this.set(obj);
 	}
 
@@ -5626,7 +6016,7 @@ Fx.Move = new Class({
 		if (topLeft.top == 'auto' || topLeft.left == 'auto'){
 			element.setPosition(element.getPosition(element.getOffsetParent()));
 		}
-		return this.parent(element.position(Object.merge(this.options, destination, {returnPos: true})));
+		return this.parent(element.position(Object.merge({}, this.options, destination, {returnPos: true})));
 	}
 
 });
@@ -5657,6 +6047,178 @@ Element.implement({
 	}
 
 });
+
+
+/*
+---
+
+script: Fx.Scroll.js
+
+name: Fx.Scroll
+
+description: Effect to smoothly scroll any element, including the window.
+
+license: MIT-style license
+
+authors:
+  - Valerio Proietti
+
+requires:
+  - Core/Fx
+  - Core/Element.Event
+  - Core/Element.Dimensions
+  - /MooTools.More
+
+provides: [Fx.Scroll]
+
+...
+*/
+
+(function(){
+
+Fx.Scroll = new Class({
+
+	Extends: Fx,
+
+	options: {
+		offset: {x: 0, y: 0},
+		wheelStops: true
+	},
+
+	initialize: function(element, options){
+		this.element = this.subject = document.id(element);
+		this.parent(options);
+
+		if (typeOf(this.element) != 'element') this.element = document.id(this.element.getDocument().body);
+
+		if (this.options.wheelStops){
+			var stopper = this.element,
+				cancel = this.cancel.pass(false, this);
+			this.addEvent('start', function(){
+				stopper.addEvent('mousewheel', cancel);
+			}, true);
+			this.addEvent('complete', function(){
+				stopper.removeEvent('mousewheel', cancel);
+			}, true);
+		}
+	},
+
+	set: function(){
+		var now = Array.flatten(arguments);
+		if (Browser.firefox) now = [Math.round(now[0]), Math.round(now[1])]; // not needed anymore in newer firefox versions
+		this.element.scrollTo(now[0], now[1]);
+	},
+
+	compute: function(from, to, delta){
+		return [0, 1].map(function(i){
+			return Fx.compute(from[i], to[i], delta);
+		});
+	},
+
+	start: function(x, y){
+		if (!this.check(x, y)) return this;
+		var scroll = this.element.getScroll();
+		return this.parent([scroll.x, scroll.y], [x, y]);
+	},
+
+	calculateScroll: function(x, y){
+		var element = this.element,
+			scrollSize = element.getScrollSize(),
+			scroll = element.getScroll(),
+			size = element.getSize(),
+			offset = this.options.offset,
+			values = {x: x, y: y};
+
+		for (var z in values){
+			if (!values[z] && values[z] !== 0) values[z] = scroll[z];
+			if (typeOf(values[z]) != 'number') values[z] = scrollSize[z] - size[z];
+			values[z] += offset[z];
+		}
+
+		return [values.x, values.y];
+	},
+
+	toTop: function(){
+		return this.start.apply(this, this.calculateScroll(false, 0));
+	},
+
+	toLeft: function(){
+		return this.start.apply(this, this.calculateScroll(0, false));
+	},
+
+	toRight: function(){
+		return this.start.apply(this, this.calculateScroll('right', false));
+	},
+
+	toBottom: function(){
+		return this.start.apply(this, this.calculateScroll(false, 'bottom'));
+	},
+
+	toElement: function(el, axes){
+		axes = axes ? Array.from(axes) : ['x', 'y'];
+		var scroll = isBody(this.element) ? {x: 0, y: 0} : this.element.getScroll();
+		var position = Object.map(document.id(el).getPosition(this.element), function(value, axis){
+			return axes.contains(axis) ? value + scroll[axis] : false;
+		});
+		return this.start.apply(this, this.calculateScroll(position.x, position.y));
+	},
+
+	toElementEdge: function(el, axes, offset){
+		axes = axes ? Array.from(axes) : ['x', 'y'];
+		el = document.id(el);
+		var to = {},
+			position = el.getPosition(this.element),
+			size = el.getSize(),
+			scroll = this.element.getScroll(),
+			containerSize = this.element.getSize(),
+			edge = {
+				x: position.x + size.x,
+				y: position.y + size.y
+			};
+
+		['x', 'y'].each(function(axis){
+			if (axes.contains(axis)){
+				if (edge[axis] > scroll[axis] + containerSize[axis]) to[axis] = edge[axis] - containerSize[axis];
+				if (position[axis] < scroll[axis]) to[axis] = position[axis];
+			}
+			if (to[axis] == null) to[axis] = scroll[axis];
+			if (offset && offset[axis]) to[axis] = to[axis] + offset[axis];
+		}, this);
+
+		if (to.x != scroll.x || to.y != scroll.y) this.start(to.x, to.y);
+		return this;
+	},
+
+	toElementCenter: function(el, axes, offset){
+		axes = axes ? Array.from(axes) : ['x', 'y'];
+		el = document.id(el);
+		var to = {},
+			position = el.getPosition(this.element),
+			size = el.getSize(),
+			scroll = this.element.getScroll(),
+			containerSize = this.element.getSize();
+
+		['x', 'y'].each(function(axis){
+			if (axes.contains(axis)){
+				to[axis] = position[axis] - (containerSize[axis] - size[axis]) / 2;
+			}
+			if (to[axis] == null) to[axis] = scroll[axis];
+			if (offset && offset[axis]) to[axis] = to[axis] + offset[axis];
+		}, this);
+
+		if (to.x != scroll.x || to.y != scroll.y) this.start(to.x, to.y);
+		return this;
+	}
+
+});
+
+
+
+function isBody(element){
+	return (/^(?:body|html)$/i).test(element.tagName);
+};
+
+})();
 
 
 /*
@@ -5695,26 +6257,31 @@ Fx.Slide = new Class({
 	},
 
 	initialize: function(element, options){
-		this.addEvent('complete', function(){
-			this.open = (this.wrapper['offset' + this.layout.capitalize()] != 0);
-			if (this.open && this.options.resetHeight) this.wrapper.setStyle('height', '');
-		}, true);
-
-		this.element = this.subject = document.id(element);
+		element = this.element = this.subject = document.id(element);
 		this.parent(options);
-		var wrapper = this.element.retrieve('wrapper');
-		var styles = this.element.getStyles('margin', 'position', 'overflow');
+		options = this.options;
 
-		if (this.options.hideOverflow) styles = Object.append(styles, {overflow: 'hidden'});
-		if (this.options.wrapper) wrapper = document.id(this.options.wrapper).setStyles(styles);
+		var wrapper = element.retrieve('wrapper'),
+			styles = element.getStyles('margin', 'position', 'overflow');
 
-		this.wrapper = wrapper || new Element('div', {
+		if (options.hideOverflow) styles = Object.append(styles, {overflow: 'hidden'});
+		if (options.wrapper) wrapper = document.id(options.wrapper).setStyles(styles);
+
+		if (!wrapper) wrapper = new Element('div', {
 			styles: styles
-		}).wraps(this.element);
+		}).wraps(element);
 
-		this.element.store('wrapper', this.wrapper).setStyle('margin', 0);
+		element.store('wrapper', wrapper).setStyle('margin', 0);
+		if (element.getStyle('overflow') == 'visible') element.setStyle('overflow', 'hidden');
+
 		this.now = [];
 		this.open = true;
+		this.wrapper = wrapper;
+
+		this.addEvent('complete', function(){
+			this.open = (wrapper['offset' + this.layout.capitalize()] != 0);
+			if (this.open && options.resetHeight) wrapper.setStyle('height', '');
+		}, true);
 	},
 
 	vertical: function(){
@@ -5744,11 +6311,13 @@ Fx.Slide = new Class({
 	start: function(how, mode){
 		if (!this.check(how, mode)) return this;
 		this[mode || this.options.mode]();
-		var margin = this.element.getStyle(this.margin).toInt();
-		var layout = this.wrapper.getStyle(this.layout).toInt();
-		var caseIn = [[margin, layout], [0, this.offset]];
-		var caseOut = [[margin, layout], [-this.offset, 0]];
-		var start;
+
+		var margin = this.element.getStyle(this.margin).toInt(),
+			layout = this.wrapper.getStyle(this.layout).toInt(),
+			caseIn = [[margin, layout], [0, this.offset]],
+			caseOut = [[margin, layout], [-this.offset, 0]],
+			start;
+
 		switch (how){
 			case 'in': start = caseIn; break;
 			case 'out': start = caseOut; break;
@@ -5827,167 +6396,6 @@ Element.implement({
 /*
 ---
 
-script: Fx.Scroll.js
-
-name: Fx.Scroll
-
-description: Effect to smoothly scroll any element, including the window.
-
-license: MIT-style license
-
-authors:
-  - Valerio Proietti
-
-requires:
-  - Core/Fx
-  - Core/Element.Event
-  - Core/Element.Dimensions
-  - /MooTools.More
-
-provides: [Fx.Scroll]
-
-...
-*/
-
-(function(){
-
-Fx.Scroll = new Class({
-
-	Extends: Fx,
-
-	options: {
-		offset: {x: 0, y: 0},
-		wheelStops: true
-	},
-
-	initialize: function(element, options){
-		this.element = this.subject = document.id(element);
-		this.parent(options);
-
-		if (typeOf(this.element) != 'element') this.element = document.id(this.element.getDocument().body);
-
-		if (this.options.wheelStops){
-			var stopper = this.element,
-				cancel = this.cancel.pass(false, this);
-			this.addEvent('start', function(){
-				stopper.addEvent('mousewheel', cancel);
-			}, true);
-			this.addEvent('complete', function(){
-				stopper.removeEvent('mousewheel', cancel);
-			}, true);
-		}
-	},
-
-	set: function(){
-		var now = Array.flatten(arguments);
-		if (Browser.firefox) now = [Math.round(now[0]), Math.round(now[1])]; // not needed anymore in newer firefox versions
-		this.element.scrollTo(now[0] + this.options.offset.x, now[1] + this.options.offset.y);
-	},
-
-	compute: function(from, to, delta){
-		return [0, 1].map(function(i){
-			return Fx.compute(from[i], to[i], delta);
-		});
-	},
-
-	start: function(x, y){
-		if (!this.check(x, y)) return this;
-		var element = this.element,
-			scrollSize = element.getScrollSize(),
-			scroll = element.getScroll(),
-			size = element.getSize();
-			values = {x: x, y: y};
-
-		for (var z in values){
-			if (!values[z] && values[z] !== 0) values[z] = scroll[z];
-			if (typeOf(values[z]) != 'number') values[z] = scrollSize[z] - size[z];
-			values[z] += this.options.offset[z];
-		}
-
-		return this.parent([scroll.x, scroll.y], [values.x, values.y]);
-	},
-
-	toTop: function(){
-		return this.start(false, 0);
-	},
-
-	toLeft: function(){
-		return this.start(0, false);
-	},
-
-	toRight: function(){
-		return this.start('right', false);
-	},
-
-	toBottom: function(){
-		return this.start(false, 'bottom');
-	},
-
-	toElement: function(el){
-		var position = document.id(el).getPosition(this.element),
-			scroll = isBody(this.element) ? {x: 0, y: 0} : this.element.getScroll();
-		return this.start(position.x + scroll.x, position.y + scroll.y);
-	},
-
-	scrollIntoView: function(el, axes, offset){
-		axes = axes ? Array.from(axes) : ['x','y'];
-		el = document.id(el);
-		var to = {},
-			position = el.getPosition(this.element),
-			size = el.getSize(),
-			scroll = this.element.getScroll(),
-			containerSize = this.element.getSize(),
-			edge = {
-				x: position.x + size.x,
-				y: position.y + size.y
-			};
-
-		['x','y'].each(function(axis){
-			if (axes.contains(axis)){
-				if (edge[axis] > scroll[axis] + containerSize[axis]) to[axis] = edge[axis] - containerSize[axis];
-				if (position[axis] < scroll[axis]) to[axis] = position[axis];
-			}
-			if (to[axis] == null) to[axis] = scroll[axis];
-			if (offset && offset[axis]) to[axis] = to[axis] + offset[axis];
-		}, this);
-
-		if (to.x != scroll.x || to.y != scroll.y) this.start(to.x, to.y);
-		return this;
-	},
-
-	scrollToCenter: function(el, axes, offset){
-		axes = axes ? Array.from(axes) : ['x', 'y'];
-		el = document.id(el);
-		var to = {},
-			position = el.getPosition(this.element),
-			size = el.getSize(),
-			scroll = this.element.getScroll(),
-			containerSize = this.element.getSize();
-
-		['x','y'].each(function(axis){
-			if (axes.contains(axis)){
-				to[axis] = position[axis] - (containerSize[axis] - size[axis])/2;
-			}
-			if (to[axis] == null) to[axis] = scroll[axis];
-			if (offset && offset[axis]) to[axis] = to[axis] + offset[axis];
-		}, this);
-
-		if (to.x != scroll.x || to.y != scroll.y) this.start(to.x, to.y);
-		return this;
-	}
-
-});
-
-function isBody(element){
-	return (/^(?:body|html)$/i).test(element.tagName);
-};
-
-})();
-
-
-/*
----
-
 script: Fx.SmoothScroll.js
 
 name: Fx.SmoothScroll
@@ -6012,6 +6420,10 @@ Fx.SmoothScroll = new Class({
 
 	Extends: Fx.Scroll,
 
+	options: {
+		axes: ['x', 'y']
+	},
+
 	initialize: function(options, context){
 		context = context || document;
 		this.doc = context.getDocument();
@@ -6026,6 +6438,11 @@ Fx.SmoothScroll = new Class({
 			var anchor = link.href.substr(location.length);
 			if (anchor) this.useLink(link, anchor);
 		}, this);
+
+		this.addEvent('complete', function(){
+			win.location.hash = this.anchor;
+			this.element.scrollTo(this.to[0], this.to[1]);
+		}, true);
 	},
 
 	useLink: function(link, anchor){
@@ -6035,9 +6452,11 @@ Fx.SmoothScroll = new Class({
 			if (!el) return;
 
 			event.preventDefault();
-			this.toElement(el).chain(function(){
+			this.toElement(el, this.options.axes).chain(function(){
 				this.fireEvent('scrolledTo', [link, el]);
 			}.bind(this));
+
+			this.anchor = anchor;
 
 		}.bind(this));
 
@@ -6181,6 +6600,10 @@ Fx.Sort = new Class({
 		return this.elements.map(function(el, index){
 			return index;
 		});
+	},
+
+	getCurrentOrder: function(){
+		return this.currentOrder;
 	},
 
 	forward: function(){
@@ -6462,200 +6885,6 @@ Element.implement({
 /*
 ---
 
-script: Slider.js
-
-name: Slider
-
-description: Class for creating horizontal and vertical slider controls.
-
-license: MIT-style license
-
-authors:
-  - Valerio Proietti
-
-requires:
-  - Core/Element.Dimensions
-  - /Class.Binds
-  - /Drag
-  - /Element.Measure
-
-provides: [Slider]
-
-...
-*/
-
-var Slider = new Class({
-
-	Implements: [Events, Options],
-
-	Binds: ['clickedElement', 'draggedKnob', 'scrolledElement'],
-
-	options: {/*
-		onTick: function(intPosition){},
-		onChange: function(intStep){},
-		onComplete: function(strStep){},*/
-		onTick: function(position){
-			if (this.options.snap) position = this.toPosition(this.step);
-			this.knob.setStyle(this.property, position);
-		},
-		initialStep: 0,
-		snap: false,
-		offset: 0,
-		range: false,
-		wheel: false,
-		steps: 100,
-		mode: 'horizontal'
-	},
-
-	initialize: function(element, knob, options){
-		this.setOptions(options);
-		this.element = document.id(element);
-		this.knob = document.id(knob);
-		this.previousChange = this.previousEnd = this.step = -1;
-		var offset, limit = {}, modifiers = {'x': false, 'y': false};
-		switch (this.options.mode){
-			case 'vertical':
-				this.axis = 'y';
-				this.property = 'top';
-				offset = 'offsetHeight';
-				break;
-			case 'horizontal':
-				this.axis = 'x';
-				this.property = 'left';
-				offset = 'offsetWidth';
-		}
-
-		this.full = this.element.measure(function(){
-			this.half = this.knob[offset] / 2;
-			return this.element[offset] - this.knob[offset] + (this.options.offset * 2);
-		}.bind(this));
-
-		this.setRange(this.options.range);
-
-		this.knob.setStyle('position', 'relative').setStyle(this.property, - this.options.offset);
-		modifiers[this.axis] = this.property;
-		limit[this.axis] = [- this.options.offset, this.full - this.options.offset];
-
-		var dragOptions = {
-			snap: 0,
-			limit: limit,
-			modifiers: modifiers,
-			onDrag: this.draggedKnob,
-			onStart: this.draggedKnob,
-			onBeforeStart: (function(){
-				this.isDragging = true;
-			}).bind(this),
-			onCancel: function(){
-				this.isDragging = false;
-			}.bind(this),
-			onComplete: function(){
-				this.isDragging = false;
-				this.draggedKnob();
-				this.end();
-			}.bind(this)
-		};
-		if (this.options.snap){
-			dragOptions.grid = Math.ceil(this.stepWidth);
-			dragOptions.limit[this.axis][1] = this.full;
-		}
-
-		this.drag = new Drag(this.knob, dragOptions);
-		this.attach();
-		if (this.options.initialStep != null) this.set(this.options.initialStep)
-	},
-
-	attach: function(){
-		this.element.addEvent('mousedown', this.clickedElement);
-		if (this.options.wheel) this.element.addEvent('mousewheel', this.scrolledElement);
-		this.drag.attach();
-		return this;
-	},
-
-	detach: function(){
-		this.element.removeEvent('mousedown', this.clickedElement);
-		this.element.removeEvent('mousewheel', this.scrolledElement);
-		this.drag.detach();
-		return this;
-	},
-
-	set: function(step){
-		if (!((this.range > 0) ^ (step < this.min))) step = this.min;
-		if (!((this.range > 0) ^ (step > this.max))) step = this.max;
-
-		this.step = Math.round(step);
-		this.checkStep();
-		this.fireEvent('tick', this.toPosition(this.step));
-		this.end();
-		return this;
-	},
-
-	setRange: function(range, pos){
-		this.min = Array.pick([range[0], 0]);
-		this.max = Array.pick([range[1], this.options.steps]);
-		this.range = this.max - this.min;
-		this.steps = this.options.steps || this.full;
-		this.stepSize = Math.abs(this.range) / this.steps;
-		this.stepWidth = this.stepSize * this.full / Math.abs(this.range);
-		this.set(Array.pick([pos, this.step]).floor(this.min).max(this.max));
-		return this;
-	},
-
-	clickedElement: function(event){
-		if (this.isDragging || event.target == this.knob) return;
-
-		var dir = this.range < 0 ? -1 : 1;
-		var position = event.page[this.axis] - this.element.getPosition()[this.axis] - this.half;
-		position = position.limit(-this.options.offset, this.full -this.options.offset);
-
-		this.step = Math.round(this.min + dir * this.toStep(position));
-		this.checkStep();
-		this.fireEvent('tick', position);
-		this.end();
-	},
-
-	scrolledElement: function(event){
-		var mode = (this.options.mode == 'horizontal') ? (event.wheel < 0) : (event.wheel > 0);
-		this.set(mode ? this.step - this.stepSize : this.step + this.stepSize);
-		event.stop();
-	},
-
-	draggedKnob: function(){
-		var dir = this.range < 0 ? -1 : 1;
-		var position = this.drag.value.now[this.axis];
-		position = position.limit(-this.options.offset, this.full -this.options.offset);
-		this.step = Math.round(this.min + dir * this.toStep(position));
-		this.checkStep();
-	},
-
-	checkStep: function(){
-		if (this.previousChange != this.step){
-			this.previousChange = this.step;
-			this.fireEvent('change', this.step);
-		}
-	},
-
-	end: function(){
-		if (this.previousEnd !== this.step){
-			this.previousEnd = this.step;
-			this.fireEvent('complete', this.step + '');
-		}
-	},
-
-	toStep: function(position){
-		var step = (position + this.options.offset) * this.stepSize / this.full * this.steps;
-		return this.options.steps ? Math.round(step -= step % this.stepSize) : step;
-	},
-
-	toPosition: function(step){
-		return (this.full * Math.abs(this.min - step)) / (this.steps * this.stepSize) - this.options.offset;
-	}
-
-});
-
-
-/*
----
-
 script: Drag.Move.js
 
 name: Drag.Move
@@ -6802,9 +7031,21 @@ Drag.Move = new Class({
 		};
 	},
 
+	getDroppableCoordinates: function(element){
+		var position = element.getCoordinates();
+		if (element.getStyle('position') == 'fixed') {
+			var scroll = window.getScroll();
+			position.left += scroll.x;
+			position.right += scroll.x;
+			position.top += scroll.y;
+			position.bottom += scroll.y;
+		}
+		return position;
+	},
+
 	checkDroppables: function(){
 		var overed = this.droppables.filter(function(el, i){
-			el = this.positions ? this.positions[i] : el.getCoordinates();
+			el = this.positions ? this.positions[i] : this.getDroppableCoordinates(el);
 			var now = this.mouse.now;
 			return (now.x > el.left && now.x < el.right && now.y < el.bottom && now.y > el.top);
 		}, this).getLast();
@@ -6844,6 +7085,234 @@ Element.implement({
 /*
 ---
 
+script: Slider.js
+
+name: Slider
+
+description: Class for creating horizontal and vertical slider controls.
+
+license: MIT-style license
+
+authors:
+  - Valerio Proietti
+
+requires:
+  - Core/Element.Dimensions
+  - /Class.Binds
+  - /Drag
+  - /Element.Measure
+
+provides: [Slider]
+
+...
+*/
+
+var Slider = new Class({
+
+	Implements: [Events, Options],
+
+	Binds: ['clickedElement', 'draggedKnob', 'scrolledElement'],
+
+	options: {/*
+		onTick: function(intPosition){},
+		onChange: function(intStep){},
+		onComplete: function(strStep){},*/
+		onTick: function(position){
+			this.setKnobPosition(position);
+		},
+		initialStep: 0,
+		snap: false,
+		offset: 0,
+		range: false,
+		wheel: false,
+		steps: 100,
+		mode: 'horizontal'
+	},
+
+	initialize: function(element, knob, options){
+		this.setOptions(options);
+		options = this.options;
+		this.element = document.id(element);
+		knob = this.knob = document.id(knob);
+		this.previousChange = this.previousEnd = this.step = -1;
+
+		var limit = {},
+			modifiers = {x: false, y: false},
+			offset;
+
+		switch (options.mode){
+			case 'vertical':
+				this.axis = 'y';
+				this.property = 'top';
+				this.offset = 'offsetHeight';
+				break;
+			case 'horizontal':
+				this.axis = 'x';
+				this.property = 'left';
+				this.offset = 'offsetWidth';
+		}
+
+		this.setSliderDimensions();
+		this.setRange(options.range);
+
+		if (knob.getStyle('position') == 'static') knob.setStyle('position', 'relative');
+		knob.setStyle(this.property, -options.offset);
+		modifiers[this.axis] = this.property;
+		limit[this.axis] = [-options.offset, this.full - options.offset];
+
+		var dragOptions = {
+			snap: 0,
+			limit: limit,
+			modifiers: modifiers,
+			onDrag: this.draggedKnob,
+			onStart: this.draggedKnob,
+			onBeforeStart: (function(){
+				this.isDragging = true;
+			}).bind(this),
+			onCancel: function(){
+				this.isDragging = false;
+			}.bind(this),
+			onComplete: function(){
+				this.isDragging = false;
+				this.draggedKnob();
+				this.end();
+			}.bind(this)
+		};
+		if (options.snap) this.setSnap(dragOptions);
+
+		this.drag = new Drag(knob, dragOptions);
+		this.attach();
+		if (options.initialStep != null) this.set(options.initialStep)
+	},
+
+	attach: function(){
+		this.element.addEvent('mousedown', this.clickedElement);
+		if (this.options.wheel) this.element.addEvent('mousewheel', this.scrolledElement);
+		this.drag.attach();
+		return this;
+	},
+
+	detach: function(){
+		this.element.removeEvent('mousedown', this.clickedElement)
+			.element.removeEvent('mousewheel', this.scrolledElement);
+		this.drag.detach();
+		return this;
+	},
+
+	autosize: function(){
+		this.setSliderDimensions()
+			.setKnobPosition(this.toPosition(this.step));
+		this.drag.options.limit[this.axis] = [-this.options.offset, this.full - this.options.offset];
+		if (this.options.snap) this.setSnap();
+		return this;
+	},
+
+	setSnap: function(options){
+		if (!options) options = this.drag.options;
+		options.grid = Math.ceil(this.stepWidth);
+		options.limit[this.axis][1] = this.full;
+		return this;
+	},
+
+	setKnobPosition: function(position){
+		if (this.options.snap) position = this.toPosition(this.step);
+		this.knob.setStyle(this.property, position);
+		return this;
+	},
+
+	setSliderDimensions: function(){
+		this.full = this.element.measure(function(){
+			this.half = this.knob[this.offset] / 2;
+			return this.element[this.offset] - this.knob[this.offset] + (this.options.offset * 2);
+		}.bind(this));
+		return this;
+	},
+
+	set: function(step){
+		if (!((this.range > 0) ^ (step < this.min))) step = this.min;
+		if (!((this.range > 0) ^ (step > this.max))) step = this.max;
+
+		this.step = Math.round(step);
+		return this.checkStep()
+			.fireEvent('tick', this.toPosition(this.step))
+			.end();
+	},
+
+	setRange: function(range, pos){
+		this.min = Array.pick([range[0], 0]);
+		this.max = Array.pick([range[1], this.options.steps]);
+		this.range = this.max - this.min;
+		this.steps = this.options.steps || this.full;
+		this.stepSize = Math.abs(this.range) / this.steps;
+		this.stepWidth = this.stepSize * this.full / Math.abs(this.range);
+		if (range) this.set(Array.pick([pos, this.step]).floor(this.min).max(this.max));
+		return this;
+	},
+
+	clickedElement: function(event){
+		if (this.isDragging || event.target == this.knob) return;
+
+		var dir = this.range < 0 ? -1 : 1,
+			position = event.page[this.axis] - this.element.getPosition()[this.axis] - this.half;
+
+		position = position.limit(-this.options.offset, this.full - this.options.offset);
+
+		this.step = Math.round(this.min + dir * this.toStep(position));
+
+		this.checkStep()
+			.fireEvent('tick', position)
+			.end();
+	},
+
+	scrolledElement: function(event){
+		var mode = (this.options.mode == 'horizontal') ? (event.wheel < 0) : (event.wheel > 0);
+		this.set(this.step + (mode ? -1 : 1) * this.stepSize);
+		event.stop();
+	},
+
+	draggedKnob: function(){
+		var dir = this.range < 0 ? -1 : 1,
+			position = this.drag.value.now[this.axis];
+
+		position = position.limit(-this.options.offset, this.full -this.options.offset);
+
+		this.step = Math.round(this.min + dir * this.toStep(position));
+		this.checkStep();
+	},
+
+	checkStep: function(){
+		var step = this.step;
+		if (this.previousChange != step){
+			this.previousChange = step;
+			this.fireEvent('change', step);
+		}
+		return this;
+	},
+
+	end: function(){
+		var step = this.step;
+		if (this.previousEnd !== step){
+			this.previousEnd = step;
+			this.fireEvent('complete', step + '');
+		}
+		return this;
+	},
+
+	toStep: function(position){
+		var step = (position + this.options.offset) * this.stepSize / this.full * this.steps;
+		return this.options.steps ? Math.round(step -= step % this.stepSize) : step;
+	},
+
+	toPosition: function(step){
+		return (this.full * Math.abs(this.min - step)) / (this.steps * this.stepSize) - this.options.offset;
+	}
+
+});
+
+
+/*
+---
+
 script: Sortables.js
 
 name: Sortables
@@ -6856,6 +7325,7 @@ authors:
   - Tom Occhino
 
 requires:
+  - Core/Fx.Morph
   - /Drag.Move
 
 provides: [Sortables]
@@ -6871,13 +7341,11 @@ var Sortables = new Class({
 		onSort: function(element, clone){},
 		onStart: function(element, clone){},
 		onComplete: function(element){},*/
-		snap: 4,
 		opacity: 1,
 		clone: false,
 		revert: false,
 		handle: false,
-		constrain: false,
-		preventDefault: false
+		dragOptions: {}
 	},
 
 	initialize: function(lists, options){
@@ -6919,7 +7387,7 @@ var Sortables = new Class({
 
 	addLists: function(){
 		Array.flatten(arguments).each(function(list){
-			this.lists.push(list);
+			this.lists.include(list);
 			this.addItems(list.getChildren());
 		}, this);
 		return this;
@@ -6952,6 +7420,8 @@ var Sortables = new Class({
 			position: 'absolute',
 			visibility: 'hidden',
 			width: element.getStyle('width')
+		}).addEvent('mousedown', function(event){
+			element.fireEvent('mousedown', event);
 		});
 		//prevent the duplicated radio inputs from unchecking the real one
 		if (clone.get('html').test('radio')){
@@ -6986,7 +7456,7 @@ var Sortables = new Class({
 		if (
 			!this.idle ||
 			event.rightClick ||
-			['button', 'input'].contains(event.target.get('tag'))
+			['button', 'input', 'a'].contains(event.target.get('tag'))
 		) return;
 
 		this.idle = false;
@@ -6995,11 +7465,10 @@ var Sortables = new Class({
 		this.list = element.getParent();
 		this.clone = this.getClone(event, element);
 
-		this.drag = new Drag.Move(this.clone, {
-			preventDefault: this.options.preventDefault,
-			snap: this.options.snap,
-			container: this.options.constrain && this.element.getParent(),
-			droppables: this.getDroppables(),
+		this.drag = new Drag.Move(this.clone, Object.merge({
+			
+			droppables: this.getDroppables()
+		}, this.options.dragOptions)).addEvents({
 			onSnap: function(){
 				event.stop();
 				this.clone.setStyle('visibility', 'visible');
@@ -7007,7 +7476,7 @@ var Sortables = new Class({
 				this.fireEvent('start', [this.element, this.clone]);
 			}.bind(this),
 			onEnter: this.insert.bind(this),
-			onCancel: this.reset.bind(this),
+			onCancel: this.end.bind(this),
 			onComplete: this.end.bind(this)
 		});
 
@@ -7019,24 +7488,31 @@ var Sortables = new Class({
 		this.drag.detach();
 		this.element.set('opacity', this.opacity);
 		if (this.effect){
-			var dim = this.element.getStyles('width', 'height');
-			var pos = this.clone.computePosition(this.element.getPosition(this.clone.getOffsetParent()));
-			this.effect.element = this.clone;
+			var dim = this.element.getStyles('width', 'height'),
+				clone = this.clone,
+				pos = clone.computePosition(this.element.getPosition(this.clone.getOffsetParent()));
+
+			var destroy = function(){
+				this.removeEvent('cancel', destroy);
+				clone.destroy();
+			};
+
+			this.effect.element = clone;
 			this.effect.start({
 				top: pos.top,
 				left: pos.left,
 				width: dim.width,
 				height: dim.height,
 				opacity: 0.25
-			}).chain(this.reset.bind(this));
+			}).addEvent('cancel', destroy).chain(destroy);
 		} else {
-			this.reset();
+			this.clone.destroy();
 		}
+		this.reset();
 	},
 
 	reset: function(){
 		this.idle = true;
-		this.clone.destroy();
 		this.fireEvent('complete', this.element);
 	},
 
@@ -7080,6 +7556,7 @@ authors:
 requires:
   - Core/Element
   - Core/Request
+  - MooTools.More
 
 provides: [Request.JSONP]
 
@@ -7145,28 +7622,24 @@ Request.JSONP = new Class({
 
 		if (src.length > 2083) this.fireEvent('error', src);
 
-		var script = this.getScript(src).inject(options.injectScript);
-
-		this.fireEvent('request', [script.get('src'), script]);
-
 		Request.JSONP.request_map['request_' + index] = function(){
 			this.success(arguments, index);
 		}.bind(this);
 
-		if (options.timeout){
-			(function(){
-				if (this.running) this.fireEvent('timeout', [script.get('src'), script]).fireEvent('failure').cancel();
-			}).delay(options.timeout, this);
-		}
+		var script = this.getScript(src).inject(options.injectScript);
+		this.fireEvent('request', [src, script]);
+
+		if (options.timeout) this.timeout.delay(options.timeout, this);
 
 		return this;
 	},
 
 	getScript: function(src){
-		return this.script = new Element('script', {
-			type: 'text/javascript',
+		if (!this.script) this.script = new Element('script[type=text/javascript]', {
+			async: true,
 			src: src
 		});
+		return this.script;
 	},
 
 	success: function(args, index){
@@ -7177,7 +7650,8 @@ Request.JSONP = new Class({
 	},
 
 	cancel: function(){
-		return this.running ? this.clear().fireEvent('cancel') : this;
+		if (this.running) this.clear().fireEvent('cancel');
+		return this;
 	},
 
 	isRunning: function(){
@@ -7185,8 +7659,19 @@ Request.JSONP = new Class({
 	},
 
 	clear: function(){
-		if (this.script) this.script.destroy();
 		this.running = false;
+		if (this.script){
+			this.script.destroy();
+			this.script = null;
+		}
+		return this;
+	},
+
+	timeout: function(){
+		if (this.running) {
+			this.running = false;
+			this.fireEvent('timeout', [this.script.get('src'), this.script]).fireEvent('failure').cancel();
+		}
 		return this;
 	}
 
@@ -7488,19 +7973,19 @@ provides: [Assets]
 var Asset = {
 
 	javascript: function(source, properties){
-		properties = Object.append({
-			document: document
-		}, properties);
+		if (!properties) properties = {};
 
-		if (properties.onLoad){
-			properties.onload = properties.onLoad;
-			delete properties.onLoad;
-		}
+		var script = new Element('script', {src: source, type: 'text/javascript'}),
+			doc = properties.document || document,
+			loaded = 0,
+			loadEvent = properties.onload || properties.onLoad;
 
-		var script = new Element('script', {src: source, type: 'text/javascript'});
-		var load = properties.onload || function(){},
-			doc = properties.document;
+		var load = loadEvent ? function(){ // make sure we only call the event once
+			if (++loaded == 1) loadEvent.call(this);
+		} : function(){};
+
 		delete properties.onload;
+		delete properties.onLoad;
 		delete properties.document;
 
 		return script.addEvents({
@@ -7512,39 +7997,40 @@ var Asset = {
 	},
 
 	css: function(source, properties){
-		properties = properties || {};
-		var onload = properties.onload || properties.onLoad;
-		if (onload){
-			properties.events = properties.events || {};
-			properties.events.load = onload;
-			delete properties.onload;
-			delete properties.onLoad;
-		}
-		return new Element('link', Object.merge({
+		if (!properties) properties = {};
+
+		var link = new Element('link', {
 			rel: 'stylesheet',
 			media: 'screen',
 			type: 'text/css',
 			href: source
-		}, properties)).inject(document.head);
+		});
+
+		var load = properties.onload || properties.onLoad,
+			doc = properties.document || document;
+
+		delete properties.onload;
+		delete properties.onLoad;
+		delete properties.document;
+
+		if (load) link.addEvent('load', load);
+		return link.set(properties).inject(doc.head);
 	},
 
 	image: function(source, properties){
-		properties = Object.merge({
-			onload: function(){},
-			onabort: function(){},
-			onerror: function(){}
-		}, properties);
-		var image = new Image();
-		var element = document.id(image) || new Element('img');
+		if (!properties) properties = {};
+
+		var image = new Image(),
+			element = document.id(image) || new Element('img');
+
 		['load', 'abort', 'error'].each(function(name){
-			var type = 'on' + name;
-			var cap = name.capitalize();
-			if (properties['on' + cap]){
-				properties[type] = properties['on' + cap];
-				delete properties['on' + cap];
-			}
-			var event = properties[type];
+			var type = 'on' + name,
+				cap = 'on' + name.capitalize(),
+				event = properties[type] || properties[cap] || function(){};
+
+			delete properties[cap];
 			delete properties[type];
+
 			image[type] = function(){
 				if (!image) return;
 				if (!element.parentNode){
@@ -7556,20 +8042,25 @@ var Asset = {
 				element.fireEvent(name, element, 1);
 			};
 		});
+
 		image.src = element.src = source;
 		if (image && image.complete) image.onload.delay(1);
 		return element.set(properties);
 	},
 
 	images: function(sources, options){
+		sources = Array.from(sources);
+
+		var fn = function(){},
+			counter = 0;
+
 		options = Object.merge({
-			onComplete: function(){},
-			onProgress: function(){},
-			onError: function(){},
+			onComplete: fn,
+			onProgress: fn,
+			onError: fn,
 			properties: {}
 		}, options);
-		sources = Array.from(sources);
-		var counter = 0;
+
 		return new Elements(sources.map(function(source, index){
 			return Asset.image(source, Object.append(options.properties, {
 				onload: function(){
@@ -7609,6 +8100,7 @@ requires:
   - Core/Number
   - Core/Hash
   - Core/Function
+  - MooTools.More
 
 provides: [Color]
 
@@ -7673,15 +8165,15 @@ Color.implement({
 
 });
 
-var $RGB = function(r, g, b){
+this.$RGB = function(r, g, b){
 	return new Color([r, g, b], 'rgb');
 };
 
-var $HSB = function(h, s, b){
+this.$HSB = function(h, s, b){
 	return new Color([h, s, b], 'hsb');
 };
 
-var $HEX = function(hex){
+this.$HEX = function(hex){
 	return new Color(hex, 'hex');
 };
 
@@ -7919,8 +8411,9 @@ var HtmlTable = new Class({
 	property: 'HtmlTable',
 
 	initialize: function(){
-		var params = Array.link(arguments, {options: Type.isObject, table: Type.isElement});
+		var params = Array.link(arguments, {options: Type.isObject, table: Type.isElement, id: Type.isString});
 		this.setOptions(params.options);
+		if(!params.table && params.id) params.table = document.id(params.id);
 		this.element = params.table || new Element('table', this.options.properties);
 		if (this.occlude()) return this.occluded;
 		this.build();
@@ -7934,18 +8427,15 @@ var HtmlTable = new Class({
 
 		if (this.options.headers.length) this.setHeaders(this.options.headers);
 		else this.thead = document.id(this.element.tHead);
-		if (this.thead) this.head = document.id(this.thead.rows[0]);
 
+		if (this.thead) this.head = this.getHead();
 		if (this.options.footers.length) this.setFooters(this.options.footers);
+
 		this.tfoot = document.id(this.element.tFoot);
 		if (this.tfoot) this.foot = document.id(this.tfoot.rows[0]);
 
 		this.options.rows.each(function(row){
 			this.push(row);
-		}, this);
-
-		['adopt', 'inject', 'wraps', 'grab', 'replaces', 'dispose'].each(function(method){
-				this[method] = this.element[method].bind(this.element);
 		}, this);
 	},
 
@@ -7959,12 +8449,21 @@ var HtmlTable = new Class({
 	},
 
 	set: function(what, items){
-		var target = (what == 'headers') ? 'tHead' : 'tFoot';
-		this[target.toLowerCase()] = (document.id(this.element[target]) || new Element(target.toLowerCase()).inject(this.element, 'top')).empty();
-		var data = this.push(items, {}, this[target.toLowerCase()], what == 'headers' ? 'th' : 'td');
-		if (what == 'headers') this.head = document.id(this.thead.rows[0]);
-		else this.foot = document.id(this.thead.rows[0]);
+		var target = (what == 'headers') ? 'tHead' : 'tFoot',
+			lower = target.toLowerCase();
+
+		this[lower] = (document.id(this.element[target]) || new Element(lower).inject(this.element, 'top')).empty();
+		var data = this.push(items, {}, this[lower], what == 'headers' ? 'th' : 'td');
+
+		if (what == 'headers') this.head = this.getHead();
+		else this.foot = this.getHead();
+
 		return data;
+	},
+
+	getHead: function(){
+		var rows = this.thead.rows;
+		return rows.length > 1 ? $$(rows) : rows.length ? document.id(rows[0]) : false;
 	},
 
 	setHeaders: function(headers){
@@ -7977,31 +8476,43 @@ var HtmlTable = new Class({
 		return this;
 	},
 
-	push: function(row, rowProperties, target, tag){
-		if (typeOf(row) == "element" && row.get('tag') == 'tr'){
-			row.inject(target || this.body);
+	push: function(row, rowProperties, target, tag, where){
+		if (typeOf(row) == 'element' && row.get('tag') == 'tr'){
+			row.inject(target || this.body, where);
 			return {
 				tr: row,
 				tds: row.getChildren('td')
 			};
 		}
+
 		var tds = row.map(function(data){
 			var td = new Element(tag || 'td', data ? data.properties : {}),
-				type = (data ? data.content : '') || data,
-				element = document.id(type);
-			if (typeOf(type) != 'string' && element) td.adopt(element);
-			else td.set('html', type);
+				content = (data ? data.content : '') || data,
+				type = typeOf(content);
+
+			if (['element', 'array', 'collection', 'elements'].contains(type)) td.adopt(content);
+			else td.set('html', content);
 
 			return td;
 		});
 
 		return {
-			tr: new Element('tr', rowProperties).inject(target || this.body).adopt(tds),
+			tr: new Element('tr', rowProperties).inject(target || this.body, where).adopt(tds),
 			tds: tds
 		};
 	}
 
 });
+
+
+['adopt', 'inject', 'wraps', 'grab', 'replaces', 'dispose'].each(function(method){
+	HtmlTable.implement(method, function(){
+		this.element[method].apply(this.element, arguments);
+		return this;
+	});
+});
+
+
 
 
 /*
@@ -8045,6 +8556,11 @@ HtmlTable = Class.refactor(HtmlTable, {
 		Array.each(this.body.rows, this.zebra, this);
 	},
 
+	setRowStyle: function(row, i){
+		if (this.previous) this.previous(row, i);
+		this.zebra(row, i);
+	},
+
 	zebra: function(row, i){
 		return row[((i % 2) ? 'remove' : 'add')+'Class'](this.options.classZebra);
 	},
@@ -8072,6 +8588,7 @@ license: MIT-style license
 authors:
   - Harald Kirschner
   - Aaron Newton
+  - Jacob Thornton
 
 requires:
   - Core/Hash
@@ -8102,7 +8619,8 @@ HtmlTable = Class.refactor(HtmlTable, {
 		classGroup: 'table-tr-group',
 		classCellSort: 'table-td-sort',
 		classSortSpan: 'table-th-sort-span',
-		sortable: false
+		sortable: false,
+		thSelector: 'th'
 	},
 
 	initialize: function (){
@@ -8120,103 +8638,137 @@ HtmlTable = Class.refactor(HtmlTable, {
 	},
 
 	attachSorts: function(attach){
-		this.element.removeEvents('click:relay(th)');
-		this.element[attach !== false ? 'addEvent' : 'removeEvent']('click:relay(th)', this.bound.headClick);
+		this.detachSorts();
+		if (attach !== false) this.element.addEvent('click:relay(' + this.options.thSelector + ')', this.bound.headClick);
+	},
+
+	detachSorts: function(){
+		this.element.removeEvents('click:relay(' + this.options.thSelector + ')');
 	},
 
 	setHeaders: function(){
 		this.previous.apply(this, arguments);
-		if (this.sortEnabled) this.detectParsers();
+		if (this.sortEnabled) this.setParsers();
 	},
 
-	detectParsers: function(force){
-		if (!this.head) return;
-		var parsers = this.options.parsers,
-			rows = this.body.rows;
+	setParsers: function(){
+		this.parsers = this.detectParsers();
+	},
 
-		// auto-detect
-		this.parsers = $$(this.head.cells).map(function(cell, index){
-			if (!force && (cell.hasClass(this.options.classNoSort) || cell.retrieve('htmltable-parser'))) return cell.retrieve('htmltable-parser');
-			var thDiv = new Element('div');
-			Array.each(cell.childNodes, function(node){
-				thDiv.adopt(node);
-			});
-			thDiv.inject(cell);
-			var sortSpan = new Element('span', {'html': '&#160;', 'class': this.options.classSortSpan}).inject(thDiv, 'top');
+	detectParsers: function(){
+		return this.head && this.head.getElements(this.options.thSelector).flatten().map(this.detectParser, this);
+	},
 
-			this.sortSpans.push(sortSpan);
-
-			var parser = parsers[index],
-					cancel;
-			switch (typeOf(parser)){
-				case 'function': parser = {convert: parser}; cancel = true; break;
-				case 'string': parser = parser; cancel = true; break;
-			}
-			if (!cancel){
-				Object.some(HtmlTable.Parsers, function(current){
-					var match = current.match;
-					if (!match) return false;
-					for (var i = 0, j = rows.length; i < j; i++){
-						var cell = document.id(rows[i].cells[index]);
-						var text = cell ? cell.get('html').clean() : '';
-						if (text && match.test(text)){
-							parser = current;
-							return true;
-						}
+	detectParser: function(cell, index){
+		if (cell.hasClass(this.options.classNoSort) || cell.retrieve('htmltable-parser')) return cell.retrieve('htmltable-parser');
+		var thDiv = new Element('div');
+		thDiv.adopt(cell.childNodes).inject(cell);
+		var sortSpan = new Element('span', {'html': '&#160;', 'class': this.options.classSortSpan}).inject(thDiv, 'top');
+		this.sortSpans.push(sortSpan);
+		var parser = this.options.parsers[index],
+			rows = this.body.rows,
+			cancel;
+		switch (typeOf(parser)){
+			case 'function': parser = {convert: parser}; cancel = true; break;
+			case 'string': parser = parser; cancel = true; break;
+		}
+		if (!cancel){
+			HtmlTable.ParserPriority.some(function(parserName){
+				var current = HtmlTable.Parsers[parserName],
+					match = current.match;
+				if (!match) return false;
+				for (var i = 0, j = rows.length; i < j; i++){
+					var cell = document.id(rows[i].cells[index]),
+						text = cell ? cell.get('html').clean() : '';
+					if (text && match.test(text)){
+						parser = current;
+						return true;
 					}
-				});
-			}
-
-			if (!parser) parser = this.options.defaultParser;
-			cell.store('htmltable-parser', parser);
-			return parser;
-		}, this);
+				}
+			});
+		}
+		if (!parser) parser = this.options.defaultParser;
+		cell.store('htmltable-parser', parser);
+		return parser;
 	},
 
 	headClick: function(event, el){
 		if (!this.head || el.hasClass(this.options.classNoSort)) return;
-		var index = Array.indexOf(this.head.cells, el);
-		this.sort(index);
-		return false;
+		return this.sort(Array.indexOf(this.head.getElements(this.options.thSelector).flatten(), el) % this.body.rows[0].cells.length);
+	},
+
+	setSortedState: function(index, reverse){
+		if (reverse != null) this.sorted.reverse = reverse;
+		else if (this.sorted.index == index) this.sorted.reverse = !this.sorted.reverse;
+		else this.sorted.reverse = this.sorted.index == null;
+
+		if (index != null) this.sorted.index = index;
+	},
+
+	setHeadSort: function(sorted){
+		var head = $$(!this.head.length ? this.head.cells[this.sorted.index] : this.head.map(function(row){
+			return row.getElements(this.options.thSelector)[this.sorted.index];
+		}, this).clean());
+		if (!head.length) return;
+		if (sorted){
+			head.addClass(this.options.classHeadSort);
+			if (this.sorted.reverse) head.addClass(this.options.classHeadSortRev);
+			else head.removeClass(this.options.classHeadSortRev);
+		} else {
+			head.removeClass(this.options.classHeadSort).removeClass(this.options.classHeadSortRev);
+		}
+	},
+
+	setRowSort: function(data, pre){
+		var count = data.length,
+			body = this.body,
+			group,
+			rowIndex;
+
+		while (count){
+			var item = data[--count],
+				position = item.position,
+				row = body.rows[position];
+
+			if (row.disabled) continue;
+			if (!pre){
+				group = this.setGroupSort(group, row, item);
+				this.setRowStyle(row, count);
+			}
+			body.appendChild(row);
+
+			for (rowIndex = 0; rowIndex < count; rowIndex++) {
+				if (data[rowIndex].position > position) data[rowIndex].position--;
+			}
+		};
+	},
+
+	setRowStyle: function(row, i){
+		this.previous(row, i);
+		row.cells[this.sorted.index].addClass(this.options.classCellSort);
+	},
+
+	setGroupSort: function(group, row, item){
+		if (group == item.value) row.removeClass(this.options.classGroupHead).addClass(this.options.classGroup);
+		else row.removeClass(this.options.classGroup).addClass(this.options.classGroupHead);
+		return item.value;
+	},
+
+	getParser: function(){
+		var parser = this.parsers[this.sorted.index];
+		return typeOf(parser) == 'string' ? HtmlTable.Parsers[parser] : parser;
 	},
 
 	sort: function(index, reverse, pre){
 		if (!this.head) return;
-		var classCellSort = this.options.classCellSort;
-		var classGroup = this.options.classGroup,
-			classGroupHead = this.options.classGroupHead;
 
 		if (!pre){
-			if (index != null){
-				if (this.sorted.index == index){
-					this.sorted.reverse = !(this.sorted.reverse);
-				} else {
-					if (this.sorted.index != null){
-						this.sorted.reverse = false;
-						this.head.cells[this.sorted.index].removeClass(this.options.classHeadSort).removeClass(this.options.classHeadSortRev);
-					} else {
-						this.sorted.reverse = true;
-					}
-					this.sorted.index = index;
-				}
-			} else {
-				index = this.sorted.index;
-			}
-
-			if (reverse != null) this.sorted.reverse = reverse;
-
-			var head = document.id(this.head.cells[index]);
-			if (head){
-				head.addClass(this.options.classHeadSort);
-				if (this.sorted.reverse) head.addClass(this.options.classHeadSortRev);
-				else head.removeClass(this.options.classHeadSortRev);
-			}
-
-			this.body.getElements('td').removeClass(this.options.classCellSort);
+			this.clearSort();
+			this.setSortedState(index, reverse);
+			this.setHeadSort(true);
 		}
 
-		var parser = this.parsers[index];
-		if (typeOf(parser) == 'string') parser = HtmlTable.Parsers[parser];
+		var parser = this.getParser();
 		if (!parser) return;
 
 		if (!Browser.ie){
@@ -8224,56 +8776,32 @@ HtmlTable = Class.refactor(HtmlTable, {
 			this.body.dispose();
 		}
 
-		var data = Array.map(this.body.rows, function(row, i){
-			var value = parser.convert.call(document.id(row.cells[index]));
-
-			return {
-				position: i,
-				value: value,
-				toString: function(){
-					return value.toString();
-				}
-			};
-		}, this);
-		data.reverse(true);
-
-		data.sort(function(a, b){
+		var data = this.parseData(parser).sort(function(a, b){
 			if (a.value === b.value) return 0;
 			return a.value > b.value ? 1 : -1;
 		});
 
-		if (!this.sorted.reverse) data.reverse(true);
+		if (this.sorted.reverse == (parser == HtmlTable.Parsers['input-checked'])) data.reverse(true);
+		this.setRowSort(data, pre);
 
-		var i = data.length, body = this.body;
-		var j, position, entry, group;
+		if (rel) rel.grab(this.body);
 
-		while (i){
-			var item = data[--i];
-			position = item.position;
-			var row = body.rows[position];
-			if (row.disabled) continue;
+		return this.fireEvent('sort', [this.body, this.sorted.index]);
+	},
 
-			if (!pre){
-				if (group === item.value){
-					row.removeClass(classGroupHead).addClass(classGroup);
-				} else {
-					group = item.value;
-					row.removeClass(classGroup).addClass(classGroupHead);
-				}
-				if (this.options.zebra) this.zebra(row, i);
+	parseData: function(parser){
+		return Array.map(this.body.rows, function(row, i){
+			var value = parser.convert.call(document.id(row.cells[this.sorted.index]));
+			return {
+				position: i,
+				value: value
+			};
+		}, this);
+	},
 
-				row.cells[index].addClass(classCellSort);
-			}
-
-			body.appendChild(row);
-			for (j = 0; j < i; j++){
-				if (data[j].position > position) data[j].position--;
-			}
-		};
-		data = null;
-		if (rel) rel.grab(body);
-
-		return this.fireEvent('sort', [body, index]);
+	clearSort: function(){
+		this.setHeadSort(false);
+		this.body.getElements('td').removeClass(this.options.classCellSort);
 	},
 
 	reSort: function(){
@@ -8284,7 +8812,7 @@ HtmlTable = Class.refactor(HtmlTable, {
 	enableSort: function(){
 		this.element.addClass(this.options.classSortable);
 		this.attachSorts(true);
-		this.detectParsers();
+		this.setParsers();
 		this.sortEnabled = true;
 		return this;
 	},
@@ -8292,13 +8820,17 @@ HtmlTable = Class.refactor(HtmlTable, {
 	disableSort: function(){
 		this.element.removeClass(this.options.classSortable);
 		this.attachSorts(false);
-		this.sortSpans.each(function(span){ span.destroy(); });
+		this.sortSpans.each(function(span){
+			span.destroy();
+		});
 		this.sortSpans.empty();
 		this.sortEnabled = false;
 		return this;
 	}
 
 });
+
+HtmlTable.ParserPriority = ['date', 'input-checked', 'input-value', 'float', 'number'];
 
 HtmlTable.Parsers = {
 
@@ -8353,7 +8885,7 @@ HtmlTable.Parsers = {
 	'string': {
 		match: null,
 		convert: function(){
-			return this.get('text').stripTags();
+			return this.get('text').stripTags().toLowerCase();
 		}
 	},
 	'title': {
@@ -8369,91 +8901,10 @@ HtmlTable.Parsers = {
 
 HtmlTable.defineParsers = function(parsers){
 	HtmlTable.Parsers = Object.append(HtmlTable.Parsers, parsers);
-};
-
-
-/*
----
-
-name: Element.Event.Pseudos.Keys
-
-description: Adds functionallity fire events if certain keycombinations are pressed
-
-license: MIT-style license
-
-authors:
-  - Arian Stolwijk
-
-requires: [Element.Event.Pseudos]
-
-provides: [Element.Event.Pseudos.Keys]
-
-...
-*/
-
-(function(){
-
-var keysStoreKey = '$moo:keys-pressed',
-	keysKeyupStoreKey = '$moo:keys-keyup';
-
-
-Event.definePseudo('keys', function(split, fn, args){
-
-	var event = args[0],
-		keys = [],
-		pressed = this.retrieve(keysStoreKey, []);
-
-	keys.append(split.value.replace('++', function(){
-		keys.push('+'); // shift++ and shift+++a
-		return '';
-	}).split('+'));
-
-	pressed.include(event.key);
-
-	if (keys.every(function(key){
-		return pressed.contains(key);
-	})) fn.apply(this, args);
-
-	this.store(keysStoreKey, pressed);
-
-	if (!this.retrieve(keysKeyupStoreKey)){
-		var keyup = function(event){
-			(function(){
-				pressed = this.retrieve(keysStoreKey, []).erase(event.key);
-				this.store(keysStoreKey, pressed);
-			}).delay(0, this); // Fix for IE
-		};
-		this.store(keysKeyupStoreKey, keyup).addEvent('keyup', keyup);
+	for (parser in parsers){
+		HtmlTable.ParserPriority.unshift(parser);
 	}
-
-});
-
-Object.append(Event.Keys, {
-	'shift': 16,
-	'control': 17,
-	'alt': 18,
-	'capslock': 20,
-	'pageup': 33,
-	'pagedown': 34,
-	'end': 35,
-	'home': 36,
-	'numlock': 144,
-	'scrolllock': 145,
-	';': 186,
-	'=': 187,
-	',': 188,
-	'-': Browser.firefox ? 109 : 189,
-	'.': 190,
-	'/': 191,
-	'`': 192,
-	'[': 219,
-	'\\': 220,
-	']': 221,
-	"'": 222,
-	'+': 107
-});
-
-})();
+};
 
 
 /*
@@ -8503,31 +8954,11 @@ provides: [Keyboard]
 
 		initialize: function(options){
 			if (options && options.manager){
-				this.manager = options.manager;
+				this._manager = options.manager;
 				delete options.manager;
 			}
 			this.setOptions(options);
-			this.setup();
-		},
-		setup: function(){
-			this.addEvents(this.options.events);
-			//if this is the root manager, nothing manages it
-			if (Keyboard.manager && !this.manager) Keyboard.manager.manage(this);
-			if (this.options.active) this.activate();
-		},
-
-		handle: function(event, type){
-			//Keyboard.stop(event) prevents key propagation
-			if (event.preventKeyboardPropagation) return;
-
-			var bubbles = !!this.manager;
-			if (bubbles && this.activeKB){
-				this.activeKB.handle(event, type);
-				if (event.preventKeyboardPropagation) return;
-			}
-			this.fireEvent(type, event);
-
-			if (!bubbles && this.activeKB) this.activeKB.handle(event, type);
+			this._setup();
 		},
 
 		addEvent: function(type, fn, internal){
@@ -8546,61 +8977,61 @@ provides: [Keyboard]
 			if (instance){
 				if (instance.isActive()) return this;
 				//if we're stealing focus, store the last keyboard to have it so the relinquish command works
-				if (this.activeKB && instance != this.activeKB){
-					this.previous = this.activeKB;
+				if (this._activeKB && instance != this._activeKB){
+					this.previous = this._activeKB;
 					this.previous.fireEvent('deactivate');
 				}
 				//if we're enabling a child, assign it so that events are now passed to it
-				this.activeKB = instance.fireEvent('activate');
+				this._activeKB = instance.fireEvent('activate');
 				Keyboard.manager.fireEvent('changed');
-			} else if (this.manager){
+			} else if (this._manager){
 				//else we're enabling ourselves, we must ask our parent to do it for us
-				this.manager.activate(this);
+				this._manager.activate(this);
 			}
 			return this;
 		},
 
 		isActive: function(){
-			return this.manager ? (this.manager.activeKB == this) : (Keyboard.manager == this);
+			return this._manager ? (this._manager._activeKB == this) : (Keyboard.manager == this);
 		},
 
 		deactivate: function(instance){
 			if (instance){
-				if (instance === this.activeKB){
-					this.activeKB = null;
+				if (instance === this._activeKB){
+					this._activeKB = null;
 					instance.fireEvent('deactivate');
 					Keyboard.manager.fireEvent('changed');
 				}
-			} else if (this.manager){
-				this.manager.deactivate(this);
+			} else if (this._manager){
+				this._manager.deactivate(this);
 			}
 			return this;
 		},
 
 		relinquish: function(){
-			if (this.isActive() && this.manager && this.manager.previous) this.manager.activate(this.manager.previous);
+			if (this.isActive() && this._manager && this._manager.previous) this._manager.activate(this._manager.previous);
+			else this.deactivate();
+			return this;
 		},
 
 		//management logic
 		manage: function(instance){
-			if (instance.manager && instance.manager != Keyboard.manager && this != Keyboard.manager) instance.manager.drop(instance);
-			this.instances.push(instance);
-			instance.manager = this;
-			if (!this.activeKB) this.activate(instance);
-		},
-
-		_disable: function(instance){
-			if (this.activeKB == instance) this.activeKB = null;
+			if (instance._manager) instance._manager.drop(instance);
+			this._instances.push(instance);
+			instance._manager = this;
+			if (!this._activeKB) this.activate(instance);
+			return this;
 		},
 
 		drop: function(instance){
-			this._disable(instance);
-			this.instances.erase(instance);
-			Keyboard.manager.manage(instance);
-			if (this.activeKB == instance && this.previous && this.instances.contains(this.previous)) this.activate(this.previous);
+			instance.relinquish();
+			this._instances.erase(instance);
+			if (this._activeKB == instance){
+				if (this.previous && this._instances.contains(this.previous)) this.activate(this.previous);
+				else this._activeKB = this._instances[0];
+			}
+			return this;
 		},
-
-		instances: [],
 
 		trace: function(){
 			Keyboard.trace(this);
@@ -8608,6 +9039,38 @@ provides: [Keyboard]
 
 		each: function(fn){
 			Keyboard.each(this, fn);
+		},
+
+		/*
+			PRIVATE METHODS
+		*/
+
+		_instances: [],
+
+		_disable: function(instance){
+			if (this._activeKB == instance) this._activeKB = null;
+		},
+
+		_setup: function(){
+			this.addEvents(this.options.events);
+			//if this is the root manager, nothing manages it
+			if (Keyboard.manager && !this._manager) Keyboard.manager.manage(this);
+			if (this.options.active) this.activate();
+			else this.relinquish();
+		},
+
+		_handle: function(event, type){
+			//Keyboard.stop(event) prevents key propagation
+			if (event.preventKeyboardPropagation) return;
+
+			var bubbles = !!this._manager;
+			if (bubbles && this._activeKB){
+				this._activeKB._handle(event, type);
+				if (event.preventKeyboardPropagation) return;
+			}
+			this.fireEvent(type, event);
+
+			if (!bubbles && this._activeKB) this._activeKB._handle(event, type);
 		}
 
 	});
@@ -8649,7 +9112,7 @@ provides: [Keyboard]
 		var current = keyboard || Keyboard.manager;
 		while (current){
 			fn.run(current);
-			current = current.activeKB;
+			current = current._activeKB;
 		}
 	};
 
@@ -8677,7 +9140,7 @@ provides: [Keyboard]
 		});
 
 		if (!regex.test(event.key)) keys.push(event.key);
-		Keyboard.manager.handle(event, event.type + ':keys(' + keys.join('+') + ')');
+		Keyboard.manager._handle(event, event.type + ':keys(' + keys.join('+') + ')');
 	};
 
 	document.addEvents({
@@ -8723,13 +9186,13 @@ Keyboard.implement({
 		}
 	*/
 	addShortcut: function(name, shortcut){
-		this.shortcuts = this.shortcuts || [];
-		this.shortcutIndex = this.shortcutIndex || {};
+		this._shortcuts = this._shortcuts || [];
+		this._shortcutIndex = this._shortcutIndex || {};
 
 		shortcut.getKeyboard = Function.from(this);
 		shortcut.name = name;
-		this.shortcutIndex[name] = shortcut;
-		this.shortcuts.push(shortcut);
+		this._shortcutIndex[name] = shortcut;
+		this._shortcuts.push(shortcut);
 		if (shortcut.keys) this.addEvent(shortcut.keys, shortcut.handler);
 		return this;
 	},
@@ -8743,8 +9206,8 @@ Keyboard.implement({
 		var shortcut = this.getShortcut(name);
 		if (shortcut && shortcut.keys){
 			this.removeEvent(shortcut.keys, shortcut.handler);
-			delete this.shortcutIndex[name];
-			this.shortcuts.erase(shortcut);
+			delete this._shortcutIndex[name];
+			this._shortcuts.erase(shortcut);
 		}
 		return this;
 	},
@@ -8755,11 +9218,11 @@ Keyboard.implement({
 	},
 
 	getShortcuts: function(){
-		return this.shortcuts || [];
+		return this._shortcuts || [];
 	},
 
 	getShortcut: function(name){
-		return (this.shortcutIndex || {})[name];
+		return (this._shortcutIndex || {})[name];
 	}
 
 });
@@ -8855,16 +9318,23 @@ HtmlTable = Class.refactor(HtmlTable, {
 		if (this.options.selectable) this.enableSelect();
 	},
 
+	empty: function(){
+		this.selectNone();
+		return this.previous();
+	},
+
 	enableSelect: function(){
 		this._selectEnabled = true;
 		this._attachSelects();
 		this.element.addClass(this.options.classSelectable);
+		return this;
 	},
 
 	disableSelect: function(){
 		this._selectEnabled = false;
 		this._attachSelects(false);
 		this.element.removeClass(this.options.classSelectable);
+		return this;
 	},
 
 	push: function(){
@@ -8943,6 +9413,10 @@ HtmlTable = Class.refactor(HtmlTable, {
 		this.selectRange(startRow, endRow, true);
 	},
 
+	getSelected: function(){
+		return this._selectedRows;
+	},
+
 /*
 	Private methods:
 */
@@ -8959,16 +9433,15 @@ HtmlTable = Class.refactor(HtmlTable, {
 	_updateSelects: function(){
 		Array.each(this.body.rows, function(row){
 			var binders = row.retrieve('binders');
-			if ((binders && this._selectEnabled) || (!binders && !this._selectEnabled)) return;
+			if (!binders && !this._selectEnabled) return;
 			if (!binders){
 				binders = {
 					mouseenter: this._enterRow.pass([row], this),
 					mouseleave: this._leaveRow.pass([row], this)
 				};
-				row.store('binders', binders).addEvents(binders);
-			} else {
-				row.removeEvents(binders);
+				row.store('binders', binders);
 			}
+			(this._selectEnabled) ? row.addEvents(binders) : row.removeEvents(binders);
 		}, this);
 	},
 
@@ -9118,6 +9591,7 @@ requires:
   - Core/Options
   - Core/Element.Event
   - Core/Element.Dimensions
+  - MooTools.More
 
 provides: [Scroller]
 
@@ -9152,7 +9626,7 @@ var Scroller = new Class({
 
 	start: function(){
 		this.listener.addEvents({
-			mouseenter: this.bound.attach,
+			mouseover: this.bound.attach,
 			mouseleave: this.bound.detach
 		});
 		return this;
@@ -9160,7 +9634,7 @@ var Scroller = new Class({
 
 	stop: function(){
 		this.listener.removeEvents({
-			mouseenter: this.bound.attach,
+			mouseover: this.bound.attach,
 			mouseleave: this.bound.detach
 		});
 		this.detach();
@@ -9339,15 +9813,17 @@ this.Tips = new Class({
 	},
 
 	elementEnter: function(event, element){
-		this.container.empty();
-
-		['title', 'text'].each(function(value){
-			var content = element.retrieve('tip:' + value);
-			if (content) this.fill(new Element('div', {'class': 'tip-' + value}).inject(this.container), content);
-		}, this);
-
 		clearTimeout(this.timer);
 		this.timer = (function(){
+			this.container.empty();
+
+			['title', 'text'].each(function(value){
+				var content = element.retrieve('tip:' + value);
+				var div = this['_' + value + 'Element'] = new Element('div', {
+						'class': 'tip-' + value
+					}).inject(this.container);
+				if (content) this.fill(div, content);
+			}, this);
 			this.show(element);
 			this.position((this.options.fixed) ? {page: element.getPosition()} : event);
 		}).delay(this.options.showDelay, this);
@@ -9357,6 +9833,22 @@ this.Tips = new Class({
 		clearTimeout(this.timer);
 		this.timer = this.hide.delay(this.options.hideDelay, this, element);
 		this.fireForParent(event, element);
+	},
+
+	setTitle: function(title) {
+		if (this._titleElement) {
+			this._titleElement.empty();
+			this.fill(this._titleElement, title);
+		}
+		return this;
+	},
+
+	setText: function(text) {
+		if (this._textElement) {
+			this._textElement.empty();
+			this.fill(this._textElement, text);
+		}
+		return this;
 	},
 
 	fireForParent: function(event, element){
@@ -9411,4 +9903,3448 @@ this.Tips = new Class({
 });
 
 })();
+
+
+/*
+---
+
+script: Locale.Set.From.js
+
+name: Locale.Set.From
+
+description: Provides an alternative way to create Locale.Set objects.
+
+license: MIT-style license
+
+authors:
+  - Tim Wienk
+
+requires:
+  - Core/JSON
+  - /Locale
+
+provides: Locale.Set.From
+
+...
+*/
+
+(function(){
+
+var parsers = {
+	'json': JSON.decode
+};
+
+Locale.Set.defineParser = function(name, fn){
+	parsers[name] = fn;
+};
+
+Locale.Set.from = function(set, type){
+	if (instanceOf(set, Locale.Set)) return set;
+
+	if (!type && typeOf(set) == 'string') type = 'json';
+	if (parsers[type]) set = parsers[type](set);
+
+	locale = new Locale.Set;
+
+	locale.sets = set.sets || {};
+
+	if (set.inherits){
+		locale.inherits.locales = Array.from(set.inherits.locales);
+		locale.inherits.sets = set.inherits.sets || {};
+	}
+
+	return locale;
+}
+
+})();
+
+
+/*
+---
+
+name: Locale.ar.Date
+
+description: Date messages for Arabic.
+
+license: MIT-style license
+
+authors:
+  - Chafik Barbar
+
+requires:
+  - /Locale
+
+provides: [Locale.ar.Date]
+
+...
+*/
+
+Locale.define('ar', 'Date', {
+
+	// Culture's date order: DD/MM/YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d/%m/%Y',
+	shortTime: '%H:%M'
+
+});
+
+
+/*
+---
+
+name: Locale.ar.Form.Validator
+
+description: Form Validator messages for Arabic.
+
+license: MIT-style license
+
+authors:
+  - Chafik Barbar
+
+requires:
+  - /Locale
+
+provides: [Locale.ar.Form.Validator]
+
+...
+*/
+
+Locale.define('ar', 'FormValidator', {
+
+	required: 'هذا الحقل مطلوب.',
+	minLength: 'رجاءً إدخال {minLength} أحرف على الأقل (تم إدخال {length} أحرف).',
+	maxLength: 'الرجاء عدم إدخال أكثر من {maxLength} أحرف (تم إدخال {length} أحرف).',
+	integer: 'الرجاء إدخال عدد صحيح في هذا الحقل. أي رقم ذو كسر عشري أو مئوي (مثال 1.25 ) غير مسموح.',
+	numeric: 'الرجاء إدخال قيم رقمية في هذا الحقل (مثال "1" أو "1.1" أو "-1" أو "-1.1").',
+	digits: 'الرجاء أستخدام قيم رقمية وعلامات ترقيمية فقط في هذا الحقل (مثال, رقم هاتف مع نقطة أو شحطة)',
+	alpha: 'الرجاء أستخدام أحرف فقط (ا-ي) في هذا الحقل. أي فراغات أو علامات غير مسموحة.',
+	alphanum: 'الرجاء أستخدام أحرف فقط (ا-ي) أو أرقام (0-9) فقط في هذا الحقل. أي فراغات أو علامات غير مسموحة.',
+	dateSuchAs: 'الرجاء إدخال تاريخ صحيح كالتالي {date}',
+	dateInFormatMDY: 'الرجاء إدخال تاريخ صحيح (مثال, 31-12-1999)',
+	email: 'الرجاء إدخال بريد إلكتروني صحيح.',
+	url: 'الرجاء إدخال عنوان إلكتروني صحيح مثل http://www.example.com',
+	currencyDollar: 'الرجاء إدخال قيمة $ صحيحة. مثال, 100.00$',
+	oneRequired: 'الرجاء إدخال قيمة في أحد هذه الحقول على الأقل.',
+	errorPrefix: 'خطأ: ',
+	warningPrefix: 'تحذير: '
+
+});
+
+
+/*
+---
+
+name: Locale.ca-CA.Date
+
+description: Date messages for Catalan.
+
+license: MIT-style license
+
+authors:
+  - Ãlfons Sanchez
+
+requires:
+  - /Locale
+
+provides: [Locale.ca-CA.Date]
+
+...
+*/
+
+Locale.define('ca-CA', 'Date', {
+
+	months: ['Gener', 'Febrer', 'Març', 'Abril', 'Maig', 'Juny', 'Juli', 'Agost', 'Setembre', 'Octubre', 'Novembre', 'Desembre'],
+	months_abbr: ['gen.', 'febr.', 'març', 'abr.', 'maig', 'juny', 'jul.', 'ag.', 'set.', 'oct.', 'nov.', 'des.'],
+	days: ['Diumenge', 'Dilluns', 'Dimarts', 'Dimecres', 'Dijous', 'Divendres', 'Dissabte'],
+	days_abbr: ['dg', 'dl', 'dt', 'dc', 'dj', 'dv', 'ds'],
+
+	// Culture's date order: DD/MM/YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d/%m/%Y',
+	shortTime: '%H:%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 0,
+
+	// Date.Extras
+	ordinal: '',
+
+	lessThanMinuteAgo: 'fa menys d`un minut',
+	minuteAgo: 'fa un minut',
+	minutesAgo: 'fa {delta} minuts',
+	hourAgo: 'fa un hora',
+	hoursAgo: 'fa unes {delta} hores',
+	dayAgo: 'fa un dia',
+	daysAgo: 'fa {delta} dies',
+
+	lessThanMinuteUntil: 'menys d`un minut des d`ara',
+	minuteUntil: 'un minut des d`ara',
+	minutesUntil: '{delta} minuts des d`ara',
+	hourUntil: 'un hora des d`ara',
+	hoursUntil: 'unes {delta} hores des d`ara',
+	dayUntil: '1 dia des d`ara',
+	daysUntil: '{delta} dies des d`ara'
+
+});
+
+
+/*
+---
+
+name: Locale.ca-CA.Form.Validator
+
+description: Form Validator messages for Catalan.
+
+license: MIT-style license
+
+authors:
+  - Miquel Hudin
+  - Ãlfons Sanchez
+
+requires:
+  - /Locale
+
+provides: [Locale.ca-CA.Form.Validator]
+
+...
+*/
+
+Locale.define('ca-CA', 'FormValidator', {
+
+	required: 'Aquest camp es obligatori.',
+	minLength: 'Per favor introdueix al menys {minLength} caracters (has introduit {length} caracters).',
+	maxLength: 'Per favor introdueix no mes de {maxLength} caracters (has introduit {length} caracters).',
+	integer: 'Per favor introdueix un nombre enter en aquest camp. Nombres amb decimals (p.e. 1,25) no estan permesos.',
+	numeric: 'Per favor introdueix sols valors numerics en aquest camp (p.e. "1" o "1,1" o "-1" o "-1,1").',
+	digits: 'Per favor usa sols numeros i puntuacio en aquest camp (per exemple, un nombre de telefon amb guions i punts no esta permes).',
+	alpha: 'Per favor utilitza lletres nomes (a-z) en aquest camp. No s´admiteixen espais ni altres caracters.',
+	alphanum: 'Per favor, utilitza nomes lletres (a-z) o numeros (0-9) en aquest camp. No s´admiteixen espais ni altres caracters.',
+	dateSuchAs: 'Per favor introdueix una data valida com {date}',
+	dateInFormatMDY: 'Per favor introdueix una data valida com DD/MM/YYYY (p.e. "31/12/1999")',
+	email: 'Per favor, introdueix una adreça de correu electronic valida. Per exemple, "fred@domain.com".',
+	url: 'Per favor introdueix una URL valida com http://www.example.com.',
+	currencyDollar: 'Per favor introdueix una quantitat valida de €. Per exemple €100,00 .',
+	oneRequired: 'Per favor introdueix alguna cosa per al menys una d´aquestes entrades.',
+	errorPrefix: 'Error: ',
+	warningPrefix: 'Avis: ',
+
+	// Form.Validator.Extras
+	noSpace: 'No poden haver espais en aquesta entrada.',
+	reqChkByNode: 'No hi han elements seleccionats.',
+	requiredChk: 'Aquest camp es obligatori.',
+	reqChkByName: 'Per favor selecciona una {label}.',
+	match: 'Aquest camp necessita coincidir amb el camp {matchName}',
+	startDate: 'la data de inici',
+	endDate: 'la data de fi',
+	currendDate: 'la data actual',
+	afterDate: 'La data deu ser igual o posterior a {label}.',
+	beforeDate: 'La data deu ser igual o anterior a {label}.',
+	startMonth: 'Per favor selecciona un mes d´orige',
+	sameMonth: 'Aquestes dos dates deuen estar dins del mateix mes - deus canviar una o altra.'
+
+});
+
+
+/*
+---
+
+name: Locale.cs-CZ.Date
+
+description: Date messages for Czech.
+
+license: MIT-style license
+
+authors:
+  - Jan Černý chemiX
+  - Christopher Zukowski
+
+requires:
+  - /Locale
+
+provides: [Locale.cs-CZ.Date]
+
+...
+*/
+(function(){
+
+// Czech language pluralization rules, see http://unicode.org/repos/cldr-tmp/trunk/diff/supplemental/language_plural_rules.html
+// one -> n is 1;            1
+// few -> n in 2..4;         2-4
+// other -> everything else  0, 5-999, 1.31, 2.31, 5.31...
+var pluralize = function (n, one, few, other) {
+	if (n == 1) return one;
+	else if (n == 2 || n == 3 || n == 4) return few;
+	else return other;
+};
+
+Locale.define('cs-CZ', 'Date', {
+
+	months: ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'],
+	months_abbr: ['ledna', 'února', 'března', 'dubna', 'května', 'června', 'července', 'srpna', 'září', 'října', 'listopadu', 'prosince'],
+	days: ['Neděle', 'Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek', 'Sobota'],
+	days_abbr: ['ne', 'po', 'út', 'st', 'čt', 'pá', 'so'],
+
+	// Culture's date order: DD.MM.YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d.%m.%Y',
+	shortTime: '%H:%M',
+	AM: 'dop.',
+	PM: 'odp.',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '.',
+
+	lessThanMinuteAgo: 'před chvílí',
+	minuteAgo: 'přibližně před minutou',
+	minutesAgo: function(delta) { return 'před {delta} ' + pluralize(delta, 'minutou', 'minutami', 'minutami'); },
+	hourAgo: 'přibližně před hodinou',
+	hoursAgo: function(delta) { return 'před {delta} ' + pluralize(delta, 'hodinou', 'hodinami', 'hodinami'); },
+	dayAgo: 'před dnem',
+	daysAgo: function(delta) { return 'před {delta} ' + pluralize(delta, 'dnem', 'dny', 'dny'); },
+	weekAgo: 'před týdnem',
+	weeksAgo: function(delta) { return 'před {delta} ' + pluralize(delta, 'týdnem', 'týdny', 'týdny'); },
+	monthAgo: 'před měsícem',
+	monthsAgo: function(delta) { return 'před {delta} ' + pluralize(delta, 'měsícem', 'měsíci', 'měsíci'); },
+	yearAgo: 'před rokem',
+	yearsAgo: function(delta) { return 'před {delta} ' + pluralize(delta, 'rokem', 'lety', 'lety'); },
+
+	lessThanMinuteUntil: 'za chvíli',
+	minuteUntil: 'přibližně za minutu',
+	minutesUntil: function(delta) { return 'za {delta} ' + pluralize(delta, 'minutu', 'minuty', 'minut'); },
+	hourUntil: 'přibližně za hodinu',
+	hoursUntil: function(delta) { return 'za {delta} ' + pluralize(delta, 'hodinu', 'hodiny', 'hodin'); },
+	dayUntil: 'za den',
+	daysUntil: function(delta) { return 'za {delta} ' + pluralize(delta, 'den', 'dny', 'dnů'); },
+	weekUntil: 'za týden',
+	weeksUntil: function(delta) { return 'za {delta} ' + pluralize(delta, 'týden', 'týdny', 'týdnů'); },
+	monthUntil: 'za měsíc',
+	monthsUntil: function(delta) { return 'za {delta} ' + pluralize(delta, 'měsíc', 'měsíce', 'měsíců'); },
+	yearUntil: 'za rok',
+	yearsUntil: function(delta) { return 'za {delta} ' + pluralize(delta, 'rok', 'roky', 'let'); }
+});
+
+})();
+
+
+/*
+---
+
+name: Locale.cs-CZ.Form.Validator
+
+description: Form Validator messages for Czech.
+
+license: MIT-style license
+
+authors:
+  - Jan Černý chemiX
+
+requires:
+  - /Locale
+
+provides: [Locale.cs-CZ.Form.Validator]
+
+...
+*/
+
+Locale.define('cs-CZ', 'FormValidator', {
+
+	required: 'Tato položka je povinná.',
+	minLength: 'Zadejte prosím alespoň {minLength} znaků (napsáno {length} znaků).',
+	maxLength: 'Zadejte prosím méně než {maxLength} znaků (nápsáno {length} znaků).',
+	integer: 'Zadejte prosím celé číslo. Desetinná čísla (např. 1.25) nejsou povolena.',
+	numeric: 'Zadejte jen číselné hodnoty (tj. "1" nebo "1.1" nebo "-1" nebo "-1.1").',
+	digits: 'Zadejte prosím pouze čísla a interpunkční znaménka(například telefonní číslo s pomlčkami nebo tečkami je povoleno).',
+	alpha: 'Zadejte prosím pouze písmena (a-z). Mezery nebo jiné znaky nejsou povoleny.',
+	alphanum: 'Zadejte prosím pouze písmena (a-z) nebo číslice (0-9). Mezery nebo jiné znaky nejsou povoleny.',
+	dateSuchAs: 'Zadejte prosím platné datum jako {date}',
+	dateInFormatMDY: 'Zadejte prosím platné datum jako MM / DD / RRRR (tj. "12/31/1999")',
+	email: 'Zadejte prosím platnou e-mailovou adresu. Například "fred@domain.com".',
+	url: 'Zadejte prosím platnou URL adresu jako http://www.example.com.',
+	currencyDollar: 'Zadejte prosím platnou částku. Například $100.00.',
+	oneRequired: 'Zadejte prosím alespoň jednu hodnotu pro tyto položky.',
+	errorPrefix: 'Chyba: ',
+	warningPrefix: 'Upozornění: ',
+
+	// Form.Validator.Extras
+	noSpace: 'V této položce nejsou povoleny mezery',
+	reqChkByNode: 'Nejsou vybrány žádné položky.',
+	requiredChk: 'Tato položka je vyžadována.',
+	reqChkByName: 'Prosím vyberte {label}.',
+	match: 'Tato položka se musí shodovat s položkou {matchName}',
+	startDate: 'datum zahájení',
+	endDate: 'datum ukončení',
+	currendDate: 'aktuální datum',
+	afterDate: 'Datum by mělo být stejné nebo větší než {label}.',
+	beforeDate: 'Datum by mělo být stejné nebo menší než {label}.',
+	startMonth: 'Vyberte počáteční měsíc.',
+	sameMonth: 'Tyto dva datumy musí být ve stejném měsíci - změňte jeden z nich.',
+	creditcard: 'Zadané číslo kreditní karty je neplatné. Prosím opravte ho. Bylo zadáno {length} čísel.'
+
+});
+
+
+/*
+---
+
+name: Locale.da-DK.Date
+
+description: Date messages for Danish.
+
+license: MIT-style license
+
+authors:
+  - Martin Overgaard
+  - Henrik Hansen
+
+requires:
+  - /Locale
+
+provides: [Locale.da-DK.Date]
+
+...
+*/
+
+Locale.define('da-DK', 'Date', {
+
+	months: ['Januar', 'Februar', 'Marts', 'April', 'Maj', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'December'],
+	months_abbr: ['jan.', 'feb.', 'mar.', 'apr.', 'maj.', 'jun.', 'jul.', 'aug.', 'sep.', 'okt.', 'nov.', 'dec.'],
+	days: ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'],
+	days_abbr: ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'],
+
+	// Culture's date order: DD-MM-YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d-%m-%Y',
+	shortTime: '%H:%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '.',
+
+	lessThanMinuteAgo: 'mindre end et minut siden',
+	minuteAgo: 'omkring et minut siden',
+	minutesAgo: '{delta} minutter siden',
+	hourAgo: 'omkring en time siden',
+	hoursAgo: 'omkring {delta} timer siden',
+	dayAgo: '1 dag siden',
+	daysAgo: '{delta} dage siden',
+	weekAgo: '1 uge siden',
+	weeksAgo: '{delta} uger siden',
+	monthAgo: '1 måned siden',
+	monthsAgo: '{delta} måneder siden',
+	yearAgo: '1 år siden',
+	yearsAgo: '{delta} år siden',
+
+	lessThanMinuteUntil: 'mindre end et minut fra nu',
+	minuteUntil: 'omkring et minut fra nu',
+	minutesUntil: '{delta} minutter fra nu',
+	hourUntil: 'omkring en time fra nu',
+	hoursUntil: 'omkring {delta} timer fra nu',
+	dayUntil: '1 dag fra nu',
+	daysUntil: '{delta} dage fra nu',
+	weekUntil: '1 uge fra nu',
+	weeksUntil: '{delta} uger fra nu',
+	monthUntil: '1 måned fra nu',
+	monthsUntil: '{delta} måneder fra nu',
+	yearUntil: '1 år fra nu',
+	yearsUntil: '{delta} år fra nu'
+
+});
+
+
+/*
+---
+
+name: Locale.da-DK.Form.Validator
+
+description: Form Validator messages for Danish.
+
+license: MIT-style license
+
+authors:
+  - Martin Overgaard
+
+requires:
+  - /Locale
+
+provides: [Locale.da-DK.Form.Validator]
+
+...
+*/
+
+Locale.define('da-DK', 'FormValidator', {
+
+	required: 'Feltet skal udfyldes.',
+	minLength: 'Skriv mindst {minLength} tegn (du skrev {length} tegn).',
+	maxLength: 'Skriv maksimalt {maxLength} tegn (du skrev {length} tegn).',
+	integer: 'Skriv et tal i dette felt. Decimal tal (f.eks. 1.25) er ikke tilladt.',
+	numeric: 'Skriv kun tal i dette felt (i.e. "1" eller "1.1" eller "-1" eller "-1.1").',
+	digits: 'Skriv kun tal og tegnsætning i dette felt (eksempel, et telefon nummer med bindestreg eller punktum er tilladt).',
+	alpha: 'Skriv kun bogstaver (a-z) i dette felt. Mellemrum og andre tegn er ikke tilladt.',
+	alphanum: 'Skriv kun bogstaver (a-z) eller tal (0-9) i dette felt. Mellemrum og andre tegn er ikke tilladt.',
+	dateSuchAs: 'Skriv en gyldig dato som {date}',
+	dateInFormatMDY: 'Skriv dato i formatet DD-MM-YYYY (f.eks. "31-12-1999")',
+	email: 'Skriv en gyldig e-mail adresse. F.eks "fred@domain.com".',
+	url: 'Skriv en gyldig URL adresse. F.eks "http://www.example.com".',
+	currencyDollar: 'Skriv et gldigt beløb. F.eks Kr.100.00 .',
+	oneRequired: 'Et eller flere af felterne i denne formular skal udfyldes.',
+	errorPrefix: 'Fejl: ',
+	warningPrefix: 'Advarsel: ',
+
+	// Form.Validator.Extras
+	noSpace: 'Der må ikke benyttes mellemrum i dette felt.',
+	reqChkByNode: 'Foretag et valg.',
+	requiredChk: 'Dette felt skal udfyldes.',
+	reqChkByName: 'Vælg en {label}.',
+	match: 'Dette felt skal matche {matchName} feltet',
+	startDate: 'start dato',
+	endDate: 'slut dato',
+	currendDate: 'dags dato',
+	afterDate: 'Datoen skal være større end eller lig med {label}.',
+	beforeDate: 'Datoen skal være mindre end eller lig med {label}.',
+	startMonth: 'Vælg en start måned',
+	sameMonth: 'De valgte datoer skal være i samme måned - skift en af dem.'
+
+});
+
+
+/*
+---
+
+name: Locale.de-DE.Date
+
+description: Date messages for German.
+
+license: MIT-style license
+
+authors:
+  - Christoph Pojer
+  - Frank Rossi
+  - Ulrich Petri
+  - Fabian Beiner
+
+requires:
+  - /Locale
+
+provides: [Locale.de-DE.Date]
+
+...
+*/
+
+Locale.define('de-DE', 'Date', {
+
+	months: ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'],
+	months_abbr: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
+	days: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'],
+	days_abbr: ['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.'],
+
+	// Culture's date order: DD.MM.YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d.%m.%Y',
+	shortTime: '%H:%M',
+	AM: 'vormittags',
+	PM: 'nachmittags',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '.',
+
+	lessThanMinuteAgo: 'vor weniger als einer Minute',
+	minuteAgo: 'vor einer Minute',
+	minutesAgo: 'vor {delta} Minuten',
+	hourAgo: 'vor einer Stunde',
+	hoursAgo: 'vor {delta} Stunden',
+	dayAgo: 'vor einem Tag',
+	daysAgo: 'vor {delta} Tagen',
+	weekAgo: 'vor einer Woche',
+	weeksAgo: 'vor {delta} Wochen',
+	monthAgo: 'vor einem Monat',
+	monthsAgo: 'vor {delta} Monaten',
+	yearAgo: 'vor einem Jahr',
+	yearsAgo: 'vor {delta} Jahren',
+
+	lessThanMinuteUntil: 'in weniger als einer Minute',
+	minuteUntil: 'in einer Minute',
+	minutesUntil: 'in {delta} Minuten',
+	hourUntil: 'in ca. einer Stunde',
+	hoursUntil: 'in ca. {delta} Stunden',
+	dayUntil: 'in einem Tag',
+	daysUntil: 'in {delta} Tagen',
+	weekUntil: 'in einer Woche',
+	weeksUntil: 'in {delta} Wochen',
+	monthUntil: 'in einem Monat',
+	monthsUntil: 'in {delta} Monaten',
+	yearUntil: 'in einem Jahr',
+	yearsUntil: 'in {delta} Jahren'
+
+});
+
+
+/*
+---
+
+name: Locale.de-CH.Date
+
+description: Date messages for German (Switzerland).
+
+license: MIT-style license
+
+authors:
+  - Michael van der Weg
+
+requires:
+  - /Locale
+  - /Locale.de-DE.Date
+
+provides: [Locale.de-CH.Date]
+
+...
+*/
+
+Locale.define('de-CH').inherit('de-DE', 'Date');
+
+
+/*
+---
+
+name: Locale.de-CH.Form.Validator
+
+description: Form Validator messages for German (Switzerland).
+
+license: MIT-style license
+
+authors:
+  - Michael van der Weg
+
+requires:
+  - /Locale
+
+provides: [Locale.de-CH.Form.Validator]
+
+...
+*/
+
+Locale.define('de-CH', 'FormValidator', {
+
+	required: 'Dieses Feld ist obligatorisch.',
+	minLength: 'Geben Sie bitte mindestens {minLength} Zeichen ein (Sie haben {length} Zeichen eingegeben).',
+	maxLength: 'Bitte geben Sie nicht mehr als {maxLength} Zeichen ein (Sie haben {length} Zeichen eingegeben).',
+	integer: 'Geben Sie bitte eine ganze Zahl ein. Dezimalzahlen (z.B. 1.25) sind nicht erlaubt.',
+	numeric: 'Geben Sie bitte nur Zahlenwerte in dieses Eingabefeld ein (z.B. &quot;1&quot;, &quot;1.1&quot;, &quot;-1&quot; oder &quot;-1.1&quot;).',
+	digits: 'Benutzen Sie bitte nur Zahlen und Satzzeichen in diesem Eingabefeld (erlaubt ist z.B. eine Telefonnummer mit Bindestrichen und Punkten).',
+	alpha: 'Benutzen Sie bitte nur Buchstaben (a-z) in diesem Feld. Leerzeichen und andere Zeichen sind nicht erlaubt.',
+	alphanum: 'Benutzen Sie bitte nur Buchstaben (a-z) und Zahlen (0-9) in diesem Eingabefeld. Leerzeichen und andere Zeichen sind nicht erlaubt.',
+	dateSuchAs: 'Geben Sie bitte ein g&uuml;ltiges Datum ein. Wie zum Beispiel {date}',
+	dateInFormatMDY: 'Geben Sie bitte ein g&uuml;ltiges Datum ein. Wie zum Beispiel TT.MM.JJJJ (z.B. &quot;31.12.1999&quot;)',
+	email: 'Geben Sie bitte eine g&uuml;ltige E-Mail Adresse ein. Wie zum Beispiel &quot;maria@bernasconi.ch&quot;.',
+	url: 'Geben Sie bitte eine g&uuml;ltige URL ein. Wie zum Beispiel http://www.example.com.',
+	currencyDollar: 'Geben Sie bitte einen g&uuml;ltigen Betrag in Schweizer Franken ein. Wie zum Beispiel 100.00 CHF .',
+	oneRequired: 'Machen Sie f&uuml;r mindestens eines der Eingabefelder einen Eintrag.',
+	errorPrefix: 'Fehler: ',
+	warningPrefix: 'Warnung: ',
+
+	// Form.Validator.Extras
+	noSpace: 'In diesem Eingabefeld darf kein Leerzeichen sein.',
+	reqChkByNode: 'Es wurden keine Elemente gew&auml;hlt.',
+	requiredChk: 'Dieses Feld ist obligatorisch.',
+	reqChkByName: 'Bitte w&auml;hlen Sie ein {label}.',
+	match: 'Dieses Eingabefeld muss mit dem Feld {matchName} &uuml;bereinstimmen.',
+	startDate: 'Das Anfangsdatum',
+	endDate: 'Das Enddatum',
+	currendDate: 'Das aktuelle Datum',
+	afterDate: 'Das Datum sollte zur gleichen Zeit oder sp&auml;ter sein {label}.',
+	beforeDate: 'Das Datum sollte zur gleichen Zeit oder fr&uuml;her sein {label}.',
+	startMonth: 'W&auml;hlen Sie bitte einen Anfangsmonat',
+	sameMonth: 'Diese zwei Datumsangaben m&uuml;ssen im selben Monat sein - Sie m&uuml;ssen eine von beiden ver&auml;ndern.',
+	creditcard: 'Die eingegebene Kreditkartennummer ist ung&uuml;ltig. Bitte &uuml;berpr&uuml;fen Sie diese und versuchen Sie es erneut. {length} Zahlen eingegeben.'
+
+});
+
+
+/*
+---
+
+name: Locale.de-DE.Form.Validator
+
+description: Form Validator messages for German.
+
+license: MIT-style license
+
+authors:
+  - Frank Rossi
+  - Ulrich Petri
+  - Fabian Beiner
+
+requires:
+  - /Locale
+
+provides: [Locale.de-DE.Form.Validator]
+
+...
+*/
+
+Locale.define('de-DE', 'FormValidator', {
+
+	required: 'Dieses Eingabefeld muss ausgefüllt werden.',
+	minLength: 'Geben Sie bitte mindestens {minLength} Zeichen ein (Sie haben nur {length} Zeichen eingegeben).',
+	maxLength: 'Geben Sie bitte nicht mehr als {maxLength} Zeichen ein (Sie haben {length} Zeichen eingegeben).',
+	integer: 'Geben Sie in diesem Eingabefeld bitte eine ganze Zahl ein. Dezimalzahlen (z.B. "1.25") sind nicht erlaubt.',
+	numeric: 'Geben Sie in diesem Eingabefeld bitte nur Zahlenwerte (z.B. "1", "1.1", "-1" oder "-1.1") ein.',
+	digits: 'Geben Sie in diesem Eingabefeld bitte nur Zahlen und Satzzeichen ein (z.B. eine Telefonnummer mit Bindestrichen und Punkten ist erlaubt).',
+	alpha: 'Geben Sie in diesem Eingabefeld bitte nur Buchstaben (a-z) ein. Leerzeichen und andere Zeichen sind nicht erlaubt.',
+	alphanum: 'Geben Sie in diesem Eingabefeld bitte nur Buchstaben (a-z) und Zahlen (0-9) ein. Leerzeichen oder andere Zeichen sind nicht erlaubt.',
+	dateSuchAs: 'Geben Sie bitte ein gültiges Datum ein (z.B. "{date}").',
+	dateInFormatMDY: 'Geben Sie bitte ein gültiges Datum im Format TT.MM.JJJJ ein (z.B. "31.12.1999").',
+	email: 'Geben Sie bitte eine gültige E-Mail-Adresse ein (z.B. "max@mustermann.de").',
+	url: 'Geben Sie bitte eine gültige URL ein (z.B. "http://www.example.com").',
+	currencyDollar: 'Geben Sie bitte einen gültigen Betrag in EURO ein (z.B. 100.00€).',
+	oneRequired: 'Bitte füllen Sie mindestens ein Eingabefeld aus.',
+	errorPrefix: 'Fehler: ',
+	warningPrefix: 'Warnung: ',
+
+	// Form.Validator.Extras
+	noSpace: 'Es darf kein Leerzeichen in diesem Eingabefeld sein.',
+	reqChkByNode: 'Es wurden keine Elemente gewählt.',
+	requiredChk: 'Dieses Feld muss ausgefüllt werden.',
+	reqChkByName: 'Bitte wählen Sie ein {label}.',
+	match: 'Dieses Eingabefeld muss mit dem {matchName} Eingabefeld übereinstimmen.',
+	startDate: 'Das Anfangsdatum',
+	endDate: 'Das Enddatum',
+	currendDate: 'Das aktuelle Datum',
+	afterDate: 'Das Datum sollte zur gleichen Zeit oder später sein als {label}.',
+	beforeDate: 'Das Datum sollte zur gleichen Zeit oder früher sein als {label}.',
+	startMonth: 'Wählen Sie bitte einen Anfangsmonat',
+	sameMonth: 'Diese zwei Datumsangaben müssen im selben Monat sein - Sie müssen eines von beiden verändern.',
+	creditcard: 'Die eingegebene Kreditkartennummer ist ungültig. Bitte überprüfen Sie diese und versuchen Sie es erneut. {length} Zahlen eingegeben.'
+
+});
+
+
+/*
+---
+
+name: Locale.EU.Number
+
+description: Number messages for Europe.
+
+license: MIT-style license
+
+authors:
+  - Arian Stolwijk
+
+requires:
+  - /Locale
+
+provides: [Locale.EU.Number]
+
+...
+*/
+
+Locale.define('EU', 'Number', {
+
+	decimal: ',',
+	group: '.',
+
+	currency: {
+		prefix: '€ '
+	}
+
+});
+
+
+/*
+---
+
+name: Locale.de-DE.Number
+
+description: Number messages for German.
+
+license: MIT-style license
+
+authors:
+  - Christoph Pojer
+
+requires:
+  - /Locale
+  - /Locale.EU.Number
+
+provides: [Locale.de-DE.Number]
+
+...
+*/
+
+Locale.define('de-DE').inherit('EU', 'Number');
+
+
+/*
+---
+
+name: Locale.en-GB.Date
+
+description: Date messages for British English.
+
+license: MIT-style license
+
+authors:
+  - Aaron Newton
+
+requires:
+  - /Locale
+  - /Locale.en-US.Date
+
+provides: [Locale.en-GB.Date]
+
+...
+*/
+
+Locale.define('en-GB', 'Date', {
+
+	// Culture's date order: DD/MM/YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d/%m/%Y',
+	shortTime: '%H:%M'
+
+}).inherit('en-US', 'Date');
+
+
+/*
+---
+
+name: Locale.es-ES.Date
+
+description: Date messages for Spanish.
+
+license: MIT-style license
+
+authors:
+  - Ãlfons Sanchez
+
+requires:
+  - /Locale
+
+provides: [Locale.es-ES.Date]
+
+...
+*/
+
+Locale.define('es-ES', 'Date', {
+
+	months: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+	months_abbr: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
+	days: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+	days_abbr: ['dom', 'lun', 'mar', 'mié', 'juv', 'vie', 'sáb'],
+
+	// Culture's date order: DD/MM/YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d/%m/%Y',
+	shortTime: '%H:%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '',
+
+	lessThanMinuteAgo: 'hace menos de un minuto',
+	minuteAgo: 'hace un minuto',
+	minutesAgo: 'hace {delta} minutos',
+	hourAgo: 'hace una hora',
+	hoursAgo: 'hace unas {delta} horas',
+	dayAgo: 'hace un día',
+	daysAgo: 'hace {delta} días',
+	weekAgo: 'hace una semana',
+	weeksAgo: 'hace unas {delta} semanas',
+	monthAgo: 'hace un mes',
+	monthsAgo: 'hace {delta} meses',
+	yearAgo: 'hace un año',
+	yearsAgo: 'hace {delta} años',
+
+	lessThanMinuteUntil: 'menos de un minuto desde ahora',
+	minuteUntil: 'un minuto desde ahora',
+	minutesUntil: '{delta} minutos desde ahora',
+	hourUntil: 'una hora desde ahora',
+	hoursUntil: 'unas {delta} horas desde ahora',
+	dayUntil: 'un día desde ahora',
+	daysUntil: '{delta} días desde ahora',
+	weekUntil: 'una semana desde ahora',
+	weeksUntil: 'unas {delta} semanas desde ahora',
+	monthUntil: 'un mes desde ahora',
+	monthsUntil: '{delta} meses desde ahora',
+	yearUntil: 'un año desde ahora',
+	yearsUntil: '{delta} años desde ahora'
+
+});
+
+
+/*
+---
+
+name: Locale.es-AR.Date
+
+description: Date messages for Spanish (Argentina).
+
+license: MIT-style license
+
+authors:
+  - Ãlfons Sanchez
+  - Diego Massanti
+
+requires:
+  - /Locale
+  - /Locale.es-ES.Date
+
+provides: [Locale.es-AR.Date]
+
+...
+*/
+
+Locale.define('es-AR').inherit('es-ES', 'Date');
+
+
+/*
+---
+
+name: Locale.es-AR.Form.Validator
+
+description: Form Validator messages for Spanish (Argentina).
+
+license: MIT-style license
+
+authors:
+  - Diego Massanti
+
+requires:
+  - /Locale
+
+provides: [Locale.es-AR.Form.Validator]
+
+...
+*/
+
+Locale.define('es-AR', 'FormValidator', {
+
+	required: 'Este campo es obligatorio.',
+	minLength: 'Por favor ingrese al menos {minLength} caracteres (ha ingresado {length} caracteres).',
+	maxLength: 'Por favor no ingrese más de {maxLength} caracteres (ha ingresado {length} caracteres).',
+	integer: 'Por favor ingrese un número entero en este campo. Números con decimales (p.e. 1,25) no se permiten.',
+	numeric: 'Por favor ingrese solo valores numéricos en este campo (p.e. "1" o "1,1" o "-1" o "-1,1").',
+	digits: 'Por favor use sólo números y puntuación en este campo (por ejemplo, un número de teléfono con guiones y/o puntos no está permitido).',
+	alpha: 'Por favor use sólo letras (a-z) en este campo. No se permiten espacios ni otros caracteres.',
+	alphanum: 'Por favor, usa sólo letras (a-z) o números (0-9) en este campo. No se permiten espacios u otros caracteres.',
+	dateSuchAs: 'Por favor ingrese una fecha válida como {date}',
+	dateInFormatMDY: 'Por favor ingrese una fecha válida, utulizando el formato DD/MM/YYYY (p.e. "31/12/1999")',
+	email: 'Por favor, ingrese una dirección de e-mail válida. Por ejemplo, "fred@dominio.com".',
+	url: 'Por favor ingrese una URL válida como http://www.example.com.',
+	currencyDollar: 'Por favor ingrese una cantidad válida de pesos. Por ejemplo $100,00 .',
+	oneRequired: 'Por favor ingrese algo para por lo menos una de estas entradas.',
+	errorPrefix: 'Error: ',
+	warningPrefix: 'Advertencia: ',
+
+	// Form.Validator.Extras
+	noSpace: 'No se permiten espacios en este campo.',
+	reqChkByNode: 'No hay elementos seleccionados.',
+	requiredChk: 'Este campo es obligatorio.',
+	reqChkByName: 'Por favor selecciona una {label}.',
+	match: 'Este campo necesita coincidir con el campo {matchName}',
+	startDate: 'la fecha de inicio',
+	endDate: 'la fecha de fin',
+	currendDate: 'la fecha actual',
+	afterDate: 'La fecha debe ser igual o posterior a {label}.',
+	beforeDate: 'La fecha debe ser igual o anterior a {label}.',
+	startMonth: 'Por favor selecciona un mes de origen',
+	sameMonth: 'Estas dos fechas deben estar en el mismo mes - debes cambiar una u otra.'
+
+});
+
+
+/*
+---
+
+name: Locale.es-ES.Form.Validator
+
+description: Form Validator messages for Spanish.
+
+license: MIT-style license
+
+authors:
+  - Ãlfons Sanchez
+
+requires:
+  - /Locale
+
+provides: [Locale.es-ES.Form.Validator]
+
+...
+*/
+
+Locale.define('es-ES', 'FormValidator', {
+
+	required: 'Este campo es obligatorio.',
+	minLength: 'Por favor introduce al menos {minLength} caracteres (has introducido {length} caracteres).',
+	maxLength: 'Por favor introduce no m&aacute;s de {maxLength} caracteres (has introducido {length} caracteres).',
+	integer: 'Por favor introduce un n&uacute;mero entero en este campo. N&uacute;meros con decimales (p.e. 1,25) no se permiten.',
+	numeric: 'Por favor introduce solo valores num&eacute;ricos en este campo (p.e. "1" o "1,1" o "-1" o "-1,1").',
+	digits: 'Por favor usa solo n&uacute;meros y puntuaci&oacute;n en este campo (por ejemplo, un n&uacute;mero de tel&eacute;fono con guiones y puntos no esta permitido).',
+	alpha: 'Por favor usa letras solo (a-z) en este campo. No se admiten espacios ni otros caracteres.',
+	alphanum: 'Por favor, usa solo letras (a-z) o n&uacute;meros (0-9) en este campo. No se admiten espacios ni otros caracteres.',
+	dateSuchAs: 'Por favor introduce una fecha v&aacute;lida como {date}',
+	dateInFormatMDY: 'Por favor introduce una fecha v&aacute;lida como DD/MM/YYYY (p.e. "31/12/1999")',
+	email: 'Por favor, introduce una direcci&oacute;n de email v&aacute;lida. Por ejemplo, "fred@domain.com".',
+	url: 'Por favor introduce una URL v&aacute;lida como http://www.example.com.',
+	currencyDollar: 'Por favor introduce una cantidad v&aacute;lida de €. Por ejemplo €100,00 .',
+	oneRequired: 'Por favor introduce algo para por lo menos una de estas entradas.',
+	errorPrefix: 'Error: ',
+	warningPrefix: 'Aviso: ',
+
+	// Form.Validator.Extras
+	noSpace: 'No pueden haber espacios en esta entrada.',
+	reqChkByNode: 'No hay elementos seleccionados.',
+	requiredChk: 'Este campo es obligatorio.',
+	reqChkByName: 'Por favor selecciona una {label}.',
+	match: 'Este campo necesita coincidir con el campo {matchName}',
+	startDate: 'la fecha de inicio',
+	endDate: 'la fecha de fin',
+	currendDate: 'la fecha actual',
+	afterDate: 'La fecha debe ser igual o posterior a {label}.',
+	beforeDate: 'La fecha debe ser igual o anterior a {label}.',
+	startMonth: 'Por favor selecciona un mes de origen',
+	sameMonth: 'Estas dos fechas deben estar en el mismo mes - debes cambiar una u otra.'
+
+});
+
+
+/*
+---
+
+name: Locale.et-EE.Date
+
+description: Date messages for Estonian.
+
+license: MIT-style license
+
+authors:
+  - Kevin Valdek
+
+requires:
+  - /Locale
+
+provides: [Locale.et-EE.Date]
+
+...
+*/
+
+Locale.define('et-EE', 'Date', {
+
+	months: ['jaanuar', 'veebruar', 'märts', 'aprill', 'mai', 'juuni', 'juuli', 'august', 'september', 'oktoober', 'november', 'detsember'],
+	months_abbr: ['jaan', 'veebr', 'märts', 'apr', 'mai', 'juuni', 'juuli', 'aug', 'sept', 'okt', 'nov', 'dets'],
+	days: ['pühapäev', 'esmaspäev', 'teisipäev', 'kolmapäev', 'neljapäev', 'reede', 'laupäev'],
+	days_abbr: ['pühap', 'esmasp', 'teisip', 'kolmap', 'neljap', 'reede', 'laup'],
+
+	// Culture's date order: MM.DD.YYYY
+	dateOrder: ['month', 'date', 'year'],
+	shortDate: '%m.%d.%Y',
+	shortTime: '%H:%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '',
+
+	lessThanMinuteAgo: 'vähem kui minut aega tagasi',
+	minuteAgo: 'umbes minut aega tagasi',
+	minutesAgo: '{delta} minutit tagasi',
+	hourAgo: 'umbes tund aega tagasi',
+	hoursAgo: 'umbes {delta} tundi tagasi',
+	dayAgo: '1 päev tagasi',
+	daysAgo: '{delta} päeva tagasi',
+	weekAgo: '1 nädal tagasi',
+	weeksAgo: '{delta} nädalat tagasi',
+	monthAgo: '1 kuu tagasi',
+	monthsAgo: '{delta} kuud tagasi',
+	yearAgo: '1 aasta tagasi',
+	yearsAgo: '{delta} aastat tagasi',
+
+	lessThanMinuteUntil: 'vähem kui minuti aja pärast',
+	minuteUntil: 'umbes minuti aja pärast',
+	minutesUntil: '{delta} minuti pärast',
+	hourUntil: 'umbes tunni aja pärast',
+	hoursUntil: 'umbes {delta} tunni pärast',
+	dayUntil: '1 päeva pärast',
+	daysUntil: '{delta} päeva pärast',
+	weekUntil: '1 nädala pärast',
+	weeksUntil: '{delta} nädala pärast',
+	monthUntil: '1 kuu pärast',
+	monthsUntil: '{delta} kuu pärast',
+	yearUntil: '1 aasta pärast',
+	yearsUntil: '{delta} aasta pärast'
+
+});
+
+
+/*
+---
+
+name: Locale.et-EE.Form.Validator
+
+description: Form Validator messages for Estonian.
+
+license: MIT-style license
+
+authors:
+  - Kevin Valdek
+
+requires:
+  - /Locale
+
+provides: [Locale.et-EE.Form.Validator]
+
+...
+*/
+
+Locale.define('et-EE', 'FormValidator', {
+
+	required: 'Väli peab olema täidetud.',
+	minLength: 'Palun sisestage vähemalt {minLength} tähte (te sisestasite {length} tähte).',
+	maxLength: 'Palun ärge sisestage rohkem kui {maxLength} tähte (te sisestasite {length} tähte).',
+	integer: 'Palun sisestage väljale täisarv. Kümnendarvud (näiteks 1.25) ei ole lubatud.',
+	numeric: 'Palun sisestage ainult numbreid väljale (näiteks "1", "1.1", "-1" või "-1.1").',
+	digits: 'Palun kasutage ainult numbreid ja kirjavahemärke (telefoninumbri sisestamisel on lubatud kasutada kriipse ja punkte).',
+	alpha: 'Palun kasutage ainult tähti (a-z). Tühikud ja teised sümbolid on keelatud.',
+	alphanum: 'Palun kasutage ainult tähti (a-z) või numbreid (0-9). Tühikud ja teised sümbolid on keelatud.',
+	dateSuchAs: 'Palun sisestage kehtiv kuupäev kujul {date}',
+	dateInFormatMDY: 'Palun sisestage kehtiv kuupäev kujul MM.DD.YYYY (näiteks: "12.31.1999").',
+	email: 'Palun sisestage kehtiv e-maili aadress (näiteks: "fred@domain.com").',
+	url: 'Palun sisestage kehtiv URL (näiteks: http://www.example.com).',
+	currencyDollar: 'Palun sisestage kehtiv $ summa (näiteks: $100.00).',
+	oneRequired: 'Palun sisestage midagi vähemalt ühele antud väljadest.',
+	errorPrefix: 'Viga: ',
+	warningPrefix: 'Hoiatus: ',
+
+	// Form.Validator.Extras
+	noSpace: 'Väli ei tohi sisaldada tühikuid.',
+	reqChkByNode: 'Ükski väljadest pole valitud.',
+	requiredChk: 'Välja täitmine on vajalik.',
+	reqChkByName: 'Palun valige üks {label}.',
+	match: 'Väli peab sobima {matchName} väljaga',
+	startDate: 'algkuupäev',
+	endDate: 'lõppkuupäev',
+	currendDate: 'praegune kuupäev',
+	afterDate: 'Kuupäev peab olema võrdne või pärast {label}.',
+	beforeDate: 'Kuupäev peab olema võrdne või enne {label}.',
+	startMonth: 'Palun valige algkuupäev.',
+	sameMonth: 'Antud kaks kuupäeva peavad olema samas kuus - peate muutma ühte kuupäeva.'
+
+});
+
+
+/*
+---
+
+name: Locale.fa.Date
+
+description: Date messages for Persian.
+
+license: MIT-style license
+
+authors:
+  - Amir Hossein Hodjaty Pour
+
+requires:
+  - /Locale
+
+provides: [Locale.fa.Date]
+
+...
+*/
+
+Locale.define('fa', 'Date', {
+
+	months: ['ژانویه', 'فوریه', 'مارس', 'آپریل', 'مه', 'ژوئن', 'ژوئیه', 'آگوست', 'سپتامبر', 'اکتبر', 'نوامبر', 'دسامبر'],
+	months_abbr: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+	days: ['یکشنبه', 'دوشنبه', 'سه شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه'],
+	days_abbr: ['ي', 'د', 'س', 'چ', 'پ', 'ج', 'ش'],
+
+	// Culture's date order: MM/DD/YYYY
+	dateOrder: ['month', 'date', 'year'],
+	shortDate: '%m/%d/%Y',
+	shortTime: '%I:%M%p',
+	AM: 'ق.ظ',
+	PM: 'ب.ظ',
+
+	// Date.Extras
+	ordinal: 'ام',
+
+	lessThanMinuteAgo: 'کمتر از یک دقیقه پیش',
+	minuteAgo: 'حدود یک دقیقه پیش',
+	minutesAgo: '{delta} دقیقه پیش',
+	hourAgo: 'حدود یک ساعت پیش',
+	hoursAgo: 'حدود {delta} ساعت پیش',
+	dayAgo: '1 روز پیش',
+	daysAgo: '{delta} روز پیش',
+	weekAgo: '1 هفته پیش',
+	weeksAgo: '{delta} هفته پیش',
+	monthAgo: '1 ماه پیش',
+	monthsAgo: '{delta} ماه پیش',
+	yearAgo: '1 سال پیش',
+	yearsAgo: '{delta} سال پیش',
+
+	lessThanMinuteUntil: 'کمتر از یک دقیقه از حالا',
+	minuteUntil: 'حدود یک دقیقه از حالا',
+	minutesUntil: '{delta} دقیقه از حالا',
+	hourUntil: 'حدود یک ساعت از حالا',
+	hoursUntil: 'حدود {delta} ساعت از حالا',
+	dayUntil: '1 روز از حالا',
+	daysUntil: '{delta} روز از حالا',
+	weekUntil: '1 هفته از حالا',
+	weeksUntil: '{delta} هفته از حالا',
+	monthUntil: '1 ماه از حالا',
+	monthsUntil: '{delta} ماه از حالا',
+	yearUntil: '1 سال از حالا',
+	yearsUntil: '{delta} سال از حالا'
+
+});
+
+
+/*
+---
+
+name: Locale.fa.Form.Validator
+
+description: Form Validator messages for Persian.
+
+license: MIT-style license
+
+authors:
+  - Amir Hossein Hodjaty Pour
+
+requires:
+  - /Locale
+
+provides: [Locale.fa.Form.Validator]
+
+...
+*/
+
+Locale.define('fa', 'FormValidator', {
+
+	required: 'این فیلد الزامی است.',
+	minLength: 'شما باید حداقل {minLength} حرف وارد کنید ({length} حرف وارد کرده اید).',
+	maxLength: 'لطفا حداکثر {maxLength} حرف وارد کنید (شما {length} حرف وارد کرده اید).',
+	integer: 'لطفا از عدد صحیح استفاده کنید. اعداد اعشاری (مانند 1.25) مجاز نیستند.',
+	numeric: 'لطفا فقط داده عددی وارد کنید (مانند "1" یا "1.1" یا "1-" یا "1.1-").',
+	digits: 'لطفا فقط از اعداد و علامتها در این فیلد استفاده کنید (برای مثال شماره تلفن با خط تیره و نقطه قابل قبول است).',
+	alpha: 'لطفا فقط از حروف الفباء برای این بخش استفاده کنید. کاراکترهای دیگر و فاصله مجاز نیستند.',
+	alphanum: 'لطفا فقط از حروف الفباء و اعداد در این بخش استفاده کنید. کاراکترهای دیگر و فاصله مجاز نیستند.',
+	dateSuchAs: 'لطفا یک تاریخ معتبر مانند {date} وارد کنید.',
+	dateInFormatMDY: 'لطفا یک تاریخ معتبر به شکل MM/DD/YYYY وارد کنید (مانند "12/31/1999").',
+	email: 'لطفا یک آدرس ایمیل معتبر وارد کنید. برای مثال "fred@domain.com".',
+	url: 'لطفا یک URL معتبر مانند http://www.example.com وارد کنید.',
+	currencyDollar: 'لطفا یک محدوده معتبر برای این بخش وارد کنید مانند 100.00$ .',
+	oneRequired: 'لطفا حداقل یکی از فیلدها را پر کنید.',
+	errorPrefix: 'خطا: ',
+	warningPrefix: 'هشدار: ',
+
+	// Form.Validator.Extras
+	noSpace: 'استفاده از فاصله در این بخش مجاز نیست.',
+	reqChkByNode: 'موردی انتخاب نشده است.',
+	requiredChk: 'این فیلد الزامی است.',
+	reqChkByName: 'لطفا یک {label} را انتخاب کنید.',
+	match: 'این فیلد باید با فیلد {matchName} مطابقت داشته باشد.',
+	startDate: 'تاریخ شروع',
+	endDate: 'تاریخ پایان',
+	currendDate: 'تاریخ کنونی',
+	afterDate: 'تاریخ میبایست برابر یا بعد از {label} باشد',
+	beforeDate: 'تاریخ میبایست برابر یا قبل از {label} باشد',
+	startMonth: 'لطفا ماه شروع را انتخاب کنید',
+	sameMonth: 'این دو تاریخ باید در یک ماه باشند - شما باید یکی یا هر دو را تغییر دهید.',
+	creditcard: 'شماره کارت اعتباری که وارد کرده اید معتبر نیست. لطفا شماره را بررسی کنید و مجددا تلاش کنید. {length} رقم وارد شده است.'
+
+});
+
+
+/*
+---
+
+name: Locale.fi-FI.Date
+
+description: Date messages for Finnish.
+
+license: MIT-style license
+
+authors:
+  - ksel
+
+requires:
+  - /Locale
+
+provides: [Locale.fi-FI.Date]
+
+...
+*/
+
+Locale.define('fi-FI', 'Date', {
+
+	// NOTE: months and days are not capitalized in finnish
+	months: ['tammikuu', 'helmikuu', 'maaliskuu', 'huhtikuu', 'toukokuu', 'kesäkuu', 'heinäkuu', 'elokuu', 'syyskuu', 'lokakuu', 'marraskuu', 'joulukuu'],
+
+	// these abbreviations are really not much used in finnish because they obviously won't abbreviate very much. ;)
+	// NOTE: sometimes one can see forms such as "tammi", "helmi", etc. but that is not proper finnish.
+	months_abbr: ['tammik.', 'helmik.', 'maalisk.', 'huhtik.', 'toukok.', 'kesäk.', 'heinäk.', 'elok.', 'syysk.', 'lokak.', 'marrask.', 'jouluk.'],
+
+	days: ['sunnuntai', 'maanantai', 'tiistai', 'keskiviikko', 'torstai', 'perjantai', 'lauantai'],
+	days_abbr: ['su', 'ma', 'ti', 'ke', 'to', 'pe', 'la'],
+
+	// Culture's date order: DD/MM/YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d.%m.%Y',
+	shortTime: '%H:%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '.',
+
+	lessThanMinuteAgo: 'vajaa minuutti sitten',
+	minuteAgo: 'noin minuutti sitten',
+	minutesAgo: '{delta} minuuttia sitten',
+	hourAgo: 'noin tunti sitten',
+	hoursAgo: 'noin {delta} tuntia sitten',
+	dayAgo: 'päivä sitten',
+	daysAgo: '{delta} päivää sitten',
+	weekAgo: 'viikko sitten',
+	weeksAgo: '{delta} viikkoa sitten',
+	monthAgo: 'kuukausi sitten',
+	monthsAgo: '{delta} kuukautta sitten',
+	yearAgo: 'vuosi sitten',
+	yearsAgo: '{delta} vuotta sitten',
+
+	lessThanMinuteUntil: 'vajaan minuutin kuluttua',
+	minuteUntil: 'noin minuutin kuluttua',
+	minutesUntil: '{delta} minuutin kuluttua',
+	hourUntil: 'noin tunnin kuluttua',
+	hoursUntil: 'noin {delta} tunnin kuluttua',
+	dayUntil: 'päivän kuluttua',
+	daysUntil: '{delta} päivän kuluttua',
+	weekUntil: 'viikon kuluttua',
+	weeksUntil: '{delta} viikon kuluttua',
+	monthUntil: 'kuukauden kuluttua',
+	monthsUntil: '{delta} kuukauden kuluttua',
+	yearUntil: 'vuoden kuluttua',
+	yearsUntil: '{delta} vuoden kuluttua'
+
+});
+
+
+/*
+---
+
+name: Locale.fi-FI.Form.Validator
+
+description: Form Validator messages for Finnish.
+
+license: MIT-style license
+
+authors:
+  - ksel
+
+requires:
+  - /Locale
+
+provides: [Locale.fi-FI.Form.Validator]
+
+...
+*/
+
+Locale.define('fi-FI', 'FormValidator', {
+
+	required: 'Tämä kenttä on pakollinen.',
+	minLength: 'Ole hyvä ja anna vähintään {minLength} merkkiä (annoit {length} merkkiä).',
+	maxLength: 'Älä anna enempää kuin {maxLength} merkkiä (annoit {length} merkkiä).',
+	integer: 'Ole hyvä ja anna kokonaisluku. Luvut, joissa on desimaaleja (esim. 1.25) eivät ole sallittuja.',
+	numeric: 'Anna tähän kenttään lukuarvo (kuten "1" tai "1.1" tai "-1" tai "-1.1").',
+	digits: 'Käytä pelkästään numeroita ja välimerkkejä tässä kentässä (syötteet, kuten esim. puhelinnumero, jossa on väliviivoja, pilkkuja tai pisteitä, kelpaa).',
+	alpha: 'Anna tähän kenttään vain kirjaimia (a-z). Välilyönnit tai muut merkit eivät ole sallittuja.',
+	alphanum: 'Anna tähän kenttään vain kirjaimia (a-z) tai numeroita (0-9). Välilyönnit tai muut merkit eivät ole sallittuja.',
+	dateSuchAs: 'Ole hyvä ja anna kelvollinen päivmäärä, kuten esimerkiksi {date}',
+	dateInFormatMDY: 'Ole hyvä ja anna kelvollinen päivämäärä muodossa pp/kk/vvvv (kuten "12/31/1999")',
+	email: 'Ole hyvä ja anna kelvollinen sähköpostiosoite (kuten esimerkiksi "matti@meikalainen.com").',
+	url: 'Ole hyvä ja anna kelvollinen URL, kuten esimerkiksi http://www.example.com.',
+	currencyDollar: 'Ole hyvä ja anna kelvollinen eurosumma (kuten esimerkiksi 100,00 EUR) .',
+	oneRequired: 'Ole hyvä ja syötä jotakin ainakin johonkin näistä kentistä.',
+	errorPrefix: 'Virhe: ',
+	warningPrefix: 'Varoitus: ',
+
+	// Form.Validator.Extras
+	noSpace: 'Tässä syötteessä ei voi olla välilyöntejä',
+	reqChkByNode: 'Ei valintoja.',
+	requiredChk: 'Tämä kenttä on pakollinen.',
+	reqChkByName: 'Ole hyvä ja valitse {label}.',
+	match: 'Tämän kentän tulee vastata kenttää {matchName}',
+	startDate: 'alkupäivämäärä',
+	endDate: 'loppupäivämäärä',
+	currendDate: 'nykyinen päivämäärä',
+	afterDate: 'Päivämäärän tulisi olla sama tai myöhäisempi ajankohta kuin {label}.',
+	beforeDate: 'Päivämäärän tulisi olla sama tai aikaisempi ajankohta kuin {label}.',
+	startMonth: 'Ole hyvä ja valitse aloituskuukausi',
+	sameMonth: 'Näiden kahden päivämäärän tulee olla saman kuun sisällä -- sinun pitää muuttaa jompaa kumpaa.',
+	creditcard: 'Annettu luottokortin numero ei kelpaa. Ole hyvä ja tarkista numero sekä yritä uudelleen. {length} numeroa syötetty.'
+
+});
+
+
+/*
+---
+
+name: Locale.fi-FI.Number
+
+description: Finnish number messages
+
+license: MIT-style license
+
+authors:
+  - ksel
+
+requires:
+  - /Locale
+  - /Locale.EU.Number
+
+provides: [Locale.fi-FI.Number]
+
+...
+*/
+
+Locale.define('fi-FI', 'Number', {
+
+	group: ' ' // grouped by space
+
+}).inherit('EU', 'Number');
+
+
+/*
+---
+
+name: Locale.fr-FR.Date
+
+description: Date messages for French.
+
+license: MIT-style license
+
+authors:
+  - Nicolas Sorosac
+  - Antoine Abt
+
+requires:
+  - /Locale
+
+provides: [Locale.fr-FR.Date]
+
+...
+*/
+
+Locale.define('fr-FR', 'Date', {
+
+	months: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'],
+	months_abbr: ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'],
+	days: ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
+	days_abbr: ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'],
+
+	// Culture's date order: DD/MM/YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d/%m/%Y',
+	shortTime: '%H:%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: function(dayOfMonth){
+		return (dayOfMonth > 1) ? '' : 'er';
+	},
+
+	lessThanMinuteAgo: "il y a moins d'une minute",
+	minuteAgo: 'il y a une minute',
+	minutesAgo: 'il y a {delta} minutes',
+	hourAgo: 'il y a une heure',
+	hoursAgo: 'il y a {delta} heures',
+	dayAgo: 'il y a un jour',
+	daysAgo: 'il y a {delta} jours',
+	weekAgo: 'il y a une semaine',
+	weeksAgo: 'il y a {delta} semaines',
+	monthAgo: 'il y a 1 mois',
+	monthsAgo: 'il y a {delta} mois',
+	yearthAgo: 'il y a 1 an',
+	yearsAgo: 'il y a {delta} ans',
+
+	lessThanMinuteUntil: "dans moins d'une minute",
+	minuteUntil: 'dans une minute',
+	minutesUntil: 'dans {delta} minutes',
+	hourUntil: 'dans une heure',
+	hoursUntil: 'dans {delta} heures',
+	dayUntil: 'dans un jour',
+	daysUntil: 'dans {delta} jours',
+	weekUntil: 'dans 1 semaine',
+	weeksUntil: 'dans {delta} semaines',
+	monthUntil: 'dans 1 mois',
+	monthsUntil: 'dans {delta} mois',
+	yearUntil: 'dans 1 an',
+	yearsUntil: 'dans {delta} ans'
+
+});
+
+
+/*
+---
+
+name: Locale.fr-FR.Form.Validator
+
+description: Form Validator messages for French.
+
+license: MIT-style license
+
+authors:
+  - Miquel Hudin
+  - Nicolas Sorosac
+
+requires:
+  - /Locale
+
+provides: [Locale.fr-FR.Form.Validator]
+
+...
+*/
+
+Locale.define('fr-FR', 'FormValidator', {
+
+	required: 'Ce champ est obligatoire.',
+	minLength: 'Veuillez saisir un minimum de {minLength} caract&egrave;re(s) (vous avez saisi {length} caract&egrave;re(s)).',
+	maxLength: 'Veuillez saisir un maximum de {maxLength} caract&egrave;re(s) (vous avez saisi {length} caract&egrave;re(s)).',
+	integer: 'Veuillez saisir un nombre entier dans ce champ. Les nombres d&eacute;cimaux (ex : "1,25") ne sont pas autoris&eacute;s.',
+	numeric: 'Veuillez saisir uniquement des chiffres dans ce champ (ex : "1" ou "1,1" ou "-1" ou "-1,1").',
+	digits: "Veuillez saisir uniquement des chiffres et des signes de ponctuation dans ce champ (ex : un num&eacute;ro de t&eacute;l&eacute;phone avec des traits d'union est autoris&eacute;).",
+	alpha: 'Veuillez saisir uniquement des lettres (a-z) dans ce champ. Les espaces ou autres caract&egrave;res ne sont pas autoris&eacute;s.',
+	alphanum: 'Veuillez saisir uniquement des lettres (a-z) ou des chiffres (0-9) dans ce champ. Les espaces ou autres caract&egrave;res ne sont pas autoris&eacute;s.',
+	dateSuchAs: 'Veuillez saisir une date correcte comme {date}',
+	dateInFormatMDY: 'Veuillez saisir une date correcte, au format JJ/MM/AAAA (ex : "31/11/1999").',
+	email: 'Veuillez saisir une adresse de courrier &eacute;lectronique. Par example "fred@domaine.com".',
+	url: 'Veuillez saisir une URL, comme http://www.example.com.',
+	currencyDollar: 'Veuillez saisir une quantit&eacute; correcte. Par example 100,00&euro;.',
+	oneRequired: 'Veuillez s&eacute;lectionner au moins une de ces options.',
+	errorPrefix: 'Erreur : ',
+	warningPrefix: 'Attention : ',
+
+	// Form.Validator.Extras
+	noSpace: "Ce champ n'accepte pas les espaces.",
+	reqChkByNode: "Aucun &eacute;l&eacute;ment n'est s&eacute;lectionn&eacute;.",
+	requiredChk: 'Ce champ est obligatoire.',
+	reqChkByName: 'Veuillez s&eacute;lectionner un(e) {label}.',
+	match: 'Ce champ doit correspondre avec le champ {matchName}.',
+	startDate: 'date de d&eacute;but',
+	endDate: 'date de fin',
+	currendDate: 'date actuelle',
+	afterDate: 'La date doit &ecirc;tre identique ou post&eacute;rieure &agrave; {label}.',
+	beforeDate: 'La date doit &ecirc;tre identique ou ant&eacute;rieure &agrave; {label}.',
+	startMonth: 'Veuillez s&eacute;lectionner un mois de d&eacute;but.',
+	sameMonth: 'Ces deux dates doivent &ecirc;tre dans le m&ecirc;me mois - vous devez en modifier une.',
+	creditcard: 'Le num&eacute;ro de carte de cr&eacute;dit est invalide. Merci de v&eacute;rifier le num&eacute;ro et de r&eacute;essayer. Vous avez entr&eacute; {length} chiffre(s).'
+
+});
+
+
+/*
+---
+
+name: Locale.fr-FR.Number
+
+description: Number messages for French.
+
+license: MIT-style license
+
+authors:
+  - Arian Stolwijk
+  - sv1l
+
+requires:
+  - /Locale
+  - /Locale.EU.Number
+
+provides: [Locale.fr-FR.Number]
+
+...
+*/
+
+Locale.define('fr-FR', 'Number', {
+
+	group: ' ' // In fr-FR localization, group character is a blank space
+
+}).inherit('EU', 'Number');
+
+
+/*
+---
+
+name: Locale.he-IL.Date
+
+description: Date messages for Hebrew.
+
+license: MIT-style license
+
+authors:
+  - Elad Ossadon
+
+requires:
+  - /Locale
+
+provides: [Locale.he-IL.Date]
+
+...
+*/
+
+Locale.define('he-IL', 'Date', {
+
+	months: ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'],
+	months_abbr: ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'],
+	days: ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'],
+	days_abbr: ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'],
+
+	// Culture's date order: MM/DD/YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d/%m/%Y',
+	shortTime: '%H:%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 0,
+
+	// Date.Extras
+	ordinal: '',
+
+	lessThanMinuteAgo: 'לפני פחות מדקה',
+	minuteAgo: 'לפני כדקה',
+	minutesAgo: 'לפני {delta} דקות',
+	hourAgo: 'לפני כשעה',
+	hoursAgo: 'לפני {delta} שעות',
+	dayAgo: 'לפני יום',
+	daysAgo: 'לפני {delta} ימים',
+	weekAgo: 'לפני שבוע',
+	weeksAgo: 'לפני {delta} שבועות',
+	monthAgo: 'לפני חודש',
+	monthsAgo: 'לפני {delta} חודשים',
+	yearAgo: 'לפני שנה',
+	yearsAgo: 'לפני {delta} שנים',
+
+	lessThanMinuteUntil: 'בעוד פחות מדקה',
+	minuteUntil: 'בעוד כדקה',
+	minutesUntil: 'בעוד {delta} דקות',
+	hourUntil: 'בעוד כשעה',
+	hoursUntil: 'בעוד {delta} שעות',
+	dayUntil: 'בעוד יום',
+	daysUntil: 'בעוד {delta} ימים',
+	weekUntil: 'בעוד שבוע',
+	weeksUntil: 'בעוד {delta} שבועות',
+	monthUntil: 'בעוד חודש',
+	monthsUntil: 'בעוד {delta} חודשים',
+	yearUntil: 'בעוד שנה',
+	yearsUntil: 'בעוד {delta} שנים'
+
+});
+
+
+/*
+---
+
+name: Locale.he-IL.Form.Validator
+
+description: Form Validator messages for Hebrew.
+
+license: MIT-style license
+
+authors:
+  - Elad Ossadon
+
+requires:
+  - /Locale
+
+provides: [Locale.he-IL.Form.Validator]
+
+...
+*/
+
+Locale.define('he-IL', 'FormValidator', {
+
+	required: 'נא למלא שדה זה.',
+	minLength: 'נא להזין לפחות {minLength} תווים (הזנת {length} תווים).',
+	maxLength: 'נא להזין עד {maxLength} תווים (הזנת {length} תווים).',
+	integer: 'נא להזין מספר שלם לשדה זה. מספרים עשרוניים (כמו 1.25) אינם חוקיים.',
+	numeric: 'נא להזין ערך מספרי בלבד בשדה זה (כמו "1", "1.1", "-1" או "-1.1").',
+	digits: 'נא להזין רק ספרות וסימני הפרדה בשדה זה (למשל, מספר טלפון עם מקפים או נקודות הוא חוקי).',
+	alpha: 'נא להזין רק אותיות באנגלית (a-z) בשדה זה. רווחים או תווים אחרים אינם חוקיים.',
+	alphanum: 'נא להזין רק אותריות באנגלית (a-z) או ספרות (0-9) בשדה זה. אווחרים או תווים אחרים אינם חוקיים.',
+	dateSuchAs: 'נא להזין תאריך חוקי, כמו {date}',
+	dateInFormatMDY: 'נא להזין תאריך חוקי בפורמט MM/DD/YYYY (כמו "12/31/1999")',
+	email: 'נא להזין כתובת אימייל חוקית. לדוגמה: "fred@domain.com".',
+	url: 'נא להזין כתובת אתר חוקית, כמו http://www.example.com.',
+	currencyDollar: 'נא להזין סכום דולרי חוקי. לדוגמה $100.00.',
+	oneRequired: 'נא לבחור לפחות בשדה אחד.',
+	errorPrefix: 'שגיאה: ',
+	warningPrefix: 'אזהרה: ',
+
+	// Form.Validator.Extras
+	noSpace: 'אין להזין רווחים בשדה זה.',
+	reqChkByNode: 'נא לבחור אחת מהאפשרויות.',
+	requiredChk: 'שדה זה נדרש.',
+	reqChkByName: 'נא לבחור {label}.',
+	match: 'שדה זה צריך להתאים לשדה {matchName}',
+	startDate: 'תאריך ההתחלה',
+	endDate: 'תאריך הסיום',
+	currendDate: 'התאריך הנוכחי',
+	afterDate: 'התאריך צריך להיות זהה או אחרי {label}.',
+	beforeDate: 'התאריך צריך להיות זהה או לפני {label}.',
+	startMonth: 'נא לבחור חודש התחלה',
+	sameMonth: 'שני תאריכים אלה צריכים להיות באותו חודש - נא לשנות אחד התאריכים.',
+	creditcard: 'מספר כרטיס האשראי שהוזן אינו חוקי. נא לבדוק שנית. הוזנו {length} ספרות.'
+
+});
+
+
+/*
+---
+
+name: Locale.he-IL.Number
+
+description: Number messages for Hebrew.
+
+license: MIT-style license
+
+authors:
+  - Elad Ossadon
+
+requires:
+  - /Locale
+
+provides: [Locale.he-IL.Number]
+
+...
+*/
+
+Locale.define('he-IL', 'Number', {
+
+	decimal: '.',
+	group: ',',
+
+	currency: {
+		suffix: ' ₪'
+	}
+
+});
+
+
+/*
+---
+
+name: Locale.hu-HU.Date
+
+description: Date messages for Hungarian.
+
+license: MIT-style license
+
+authors:
+  - Zsolt Szegheő
+
+requires:
+  - /Locale
+
+provides: [Locale.hu-HU.Date]
+
+...
+*/
+
+Locale.define('hu-HU', 'Date', {
+
+	months: ['Január', 'Február', 'Március', 'Április', 'Május', 'Június', 'Július', 'Augusztus', 'Szeptember', 'Október', 'November', 'December'],
+	months_abbr: ['jan.', 'febr.', 'márc.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szept.', 'okt.', 'nov.', 'dec.'],
+	days: ['Vasárnap', 'Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat'],
+	days_abbr: ['V', 'H', 'K', 'Sze', 'Cs', 'P', 'Szo'],
+
+	// Culture's date order: YYYY.MM.DD.
+	dateOrder: ['year', 'month', 'date'],
+	shortDate: '%Y.%m.%d.',
+	shortTime: '%I:%M',
+	AM: 'de.',
+	PM: 'du.',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '.',
+
+	lessThanMinuteAgo: 'alig egy perce',
+	minuteAgo: 'egy perce',
+	minutesAgo: '{delta} perce',
+	hourAgo: 'egy órája',
+	hoursAgo: '{delta} órája',
+	dayAgo: '1 napja',
+	daysAgo: '{delta} napja',
+	weekAgo: '1 hete',
+	weeksAgo: '{delta} hete',
+	monthAgo: '1 hónapja',
+	monthsAgo: '{delta} hónapja',
+	yearAgo: '1 éve',
+	yearsAgo: '{delta} éve',
+
+	lessThanMinuteUntil: 'alig egy perc múlva',
+	minuteUntil: 'egy perc múlva',
+	minutesUntil: '{delta} perc múlva',
+	hourUntil: 'egy óra múlva',
+	hoursUntil: '{delta} óra múlva',
+	dayUntil: '1 nap múlva',
+	daysUntil: '{delta} nap múlva',
+	weekUntil: '1 hét múlva',
+	weeksUntil: '{delta} hét múlva',
+	monthUntil: '1 hónap múlva',
+	monthsUntil: '{delta} hónap múlva',
+	yearUntil: '1 év múlva',
+	yearsUntil: '{delta} év múlva'
+
+});
+
+
+/*
+---
+
+name: Locale.hu-HU.Form.Validator
+
+description: Form Validator messages for Hungarian.
+
+license: MIT-style license
+
+authors:
+  - Zsolt Szegheő
+
+requires:
+  - /Locale
+
+provides: [Locale.hu-HU.Form.Validator]
+
+...
+*/
+
+Locale.define('hu-HU', 'FormValidator', {
+
+	required: 'A mező kitöltése kötelező.',
+	minLength: 'Legalább {minLength} karakter megadása szükséges (megadva {length} karakter).',
+	maxLength: 'Legfeljebb {maxLength} karakter megadása lehetséges (megadva {length} karakter).',
+	integer: 'Egész szám megadása szükséges. A tizedesjegyek (pl. 1.25) nem engedélyezettek.',
+	numeric: 'Szám megadása szükséges (pl. "1" vagy "1.1" vagy "-1" vagy "-1.1").',
+	digits: 'Csak számok és írásjelek megadása lehetséges (pl. telefonszám kötőjelek és/vagy perjelekkel).',
+	alpha: 'Csak betűk (a-z) megadása lehetséges. Szóköz és egyéb karakterek nem engedélyezettek.',
+	alphanum: 'Csak betűk (a-z) vagy számok (0-9) megadása lehetséges. Szóköz és egyéb karakterek nem engedélyezettek.',
+	dateSuchAs: 'Valós dátum megadása szükséges (pl. {date}).',
+	dateInFormatMDY: 'Valós dátum megadása szükséges ÉÉÉÉ.HH.NN. formában. (pl. "1999.12.31.")',
+	email: 'Valós e-mail cím megadása szükséges (pl. "fred@domain.hu").',
+	url: 'Valós URL megadása szükséges (pl. http://www.example.com).',
+	currencyDollar: 'Valós pénzösszeg megadása szükséges (pl. 100.00 Ft.).',
+	oneRequired: 'Az alábbi mezők legalább egyikének kitöltése kötelező.',
+	errorPrefix: 'Hiba: ',
+	warningPrefix: 'Figyelem: ',
+
+	// Form.Validator.Extras
+	noSpace: 'A mező nem tartalmazhat szóközöket.',
+	reqChkByNode: 'Nincs egyetlen kijelölt elem sem.',
+	requiredChk: 'A mező kitöltése kötelező.',
+	reqChkByName: 'Egy {label} kiválasztása szükséges.',
+	match: 'A mezőnek egyeznie kell a(z) {matchName} mezővel.',
+	startDate: 'a kezdet dátuma',
+	endDate: 'a vég dátuma',
+	currendDate: 'jelenlegi dátum',
+	afterDate: 'A dátum nem lehet kisebb, mint {label}.',
+	beforeDate: 'A dátum nem lehet nagyobb, mint {label}.',
+	startMonth: 'Kezdeti hónap megadása szükséges.',
+	sameMonth: 'A két dátumnak ugyanazon hónapban kell lennie.',
+	creditcard: 'A megadott bankkártyaszám nem valódi (megadva {length} számjegy).'
+
+});
+
+
+/*
+---
+
+name: Locale.it-IT.Date
+
+description: Date messages for Italian.
+
+license: MIT-style license.
+
+authors:
+  - Andrea Novero
+  - Valerio Proietti
+
+requires:
+  - /Locale
+
+provides: [Locale.it-IT.Date]
+
+...
+*/
+
+Locale.define('it-IT', 'Date', {
+
+	months: ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'],
+	months_abbr: ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'],
+	days: ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'],
+	days_abbr: ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'],
+
+	// Culture's date order: DD/MM/YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d/%m/%Y',
+	shortTime: '%H.%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: 'º',
+
+	lessThanMinuteAgo: 'meno di un minuto fa',
+	minuteAgo: 'circa un minuto fa',
+	minutesAgo: 'circa {delta} minuti fa',
+	hourAgo: "circa un'ora fa",
+	hoursAgo: 'circa {delta} ore fa',
+	dayAgo: 'circa 1 giorno fa',
+	daysAgo: 'circa {delta} giorni fa',
+
+	lessThanMinuteUntil: 'tra meno di un minuto',
+	minuteUntil: 'tra circa un minuto',
+	minutesUntil: 'tra circa {delta} minuti',
+	hourUntil: "tra circa un'ora",
+	hoursUntil: 'tra circa {delta} ore',
+	dayUntil: 'tra circa un giorno',
+	daysUntil: 'tra circa {delta} giorni'
+
+});
+
+
+/*
+---
+
+name: Locale.it-IT.Form.Validator
+
+description: Form Validator messages for Italian.
+
+license: MIT-style license
+
+authors:
+  - Leonardo Laureti
+  - Andrea Novero
+
+requires:
+  - /Locale
+
+provides: [Locale.it-IT.Form.Validator]
+
+...
+*/
+
+Locale.define('it-IT', 'FormValidator', {
+
+	required: 'Il campo &egrave; obbligatorio.',
+	minLength: 'Inserire almeno {minLength} caratteri (ne sono stati inseriti {length}).',
+	maxLength: 'Inserire al massimo {maxLength} caratteri (ne sono stati inseriti {length}).',
+	integer: 'Inserire un numero intero. Non sono consentiti decimali (es.: 1.25).',
+	numeric: 'Inserire solo valori numerici (es.: "1" oppure "1.1" oppure "-1" oppure "-1.1").',
+	digits: 'Inserire solo numeri e caratteri di punteggiatura. Per esempio &egrave; consentito un numero telefonico con trattini o punti.',
+	alpha: 'Inserire solo lettere (a-z). Non sono consentiti spazi o altri caratteri.',
+	alphanum: 'Inserire solo lettere (a-z) o numeri (0-9). Non sono consentiti spazi o altri caratteri.',
+	dateSuchAs: 'Inserire una data valida del tipo {date}',
+	dateInFormatMDY: 'Inserire una data valida nel formato MM/GG/AAAA (es.: "12/31/1999")',
+	email: 'Inserire un indirizzo email valido. Per esempio "nome@dominio.com".',
+	url: 'Inserire un indirizzo valido. Per esempio "http://www.example.com".',
+	currencyDollar: 'Inserire un importo valido. Per esempio "$100.00".',
+	oneRequired: 'Completare almeno uno dei campi richiesti.',
+	errorPrefix: 'Errore: ',
+	warningPrefix: 'Attenzione: ',
+
+	// Form.Validator.Extras
+	noSpace: 'Non sono consentiti spazi.',
+	reqChkByNode: 'Nessuna voce selezionata.',
+	requiredChk: 'Il campo &egrave; obbligatorio.',
+	reqChkByName: 'Selezionare un(a) {label}.',
+	match: 'Il valore deve corrispondere al campo {matchName}',
+	startDate: "data d'inizio",
+	endDate: 'data di fine',
+	currendDate: 'data attuale',
+	afterDate: 'La data deve corrispondere o essere successiva al {label}.',
+	beforeDate: 'La data deve corrispondere o essere precedente al {label}.',
+	startMonth: "Selezionare un mese d'inizio",
+	sameMonth: 'Le due date devono essere dello stesso mese - occorre modificarne una.'
+
+});
+
+
+/*
+---
+
+name: Locale.ja-JP.Date
+
+description: Date messages for Japanese.
+
+license: MIT-style license
+
+authors:
+  - Noritaka Horio
+
+requires:
+  - /Locale
+
+provides: [Locale.ja-JP.Date]
+
+...
+*/
+
+Locale.define('ja-JP', 'Date', {
+
+	months: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+	months_abbr: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+	days: ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'],
+	days_abbr: ['日', '月', '火', '水', '木', '金', '土'],
+
+	// Culture's date order: YYYY/MM/DD
+	dateOrder: ['year', 'month', 'date'],
+	shortDate: '%Y/%m/%d',
+	shortTime: '%H:%M',
+	AM: '午前',
+	PM: '午後',
+	firstDayOfWeek: 0,
+
+	// Date.Extras
+	ordinal: '',
+
+	lessThanMinuteAgo: '1分以内前',
+	minuteAgo: '約1分前',
+	minutesAgo: '約{delta}分前',
+	hourAgo: '約1時間前',
+	hoursAgo: '約{delta}時間前',
+	dayAgo: '1日前',
+	daysAgo: '{delta}日前',
+	weekAgo: '1週間前',
+	weeksAgo: '{delta}週間前',
+	monthAgo: '1ヶ月前',
+	monthsAgo: '{delta}ヶ月前',
+	yearAgo: '1年前',
+	yearsAgo: '{delta}年前',
+
+	lessThanMinuteUntil: '今から約1分以内',
+	minuteUntil: '今から約1分',
+	minutesUntil: '今から約{delta}分',
+	hourUntil: '今から約1時間',
+	hoursUntil: '今から約{delta}時間',
+	dayUntil: '今から1日間',
+	daysUntil: '今から{delta}日間',
+	weekUntil: '今から1週間',
+	weeksUntil: '今から{delta}週間',
+	monthUntil: '今から1ヶ月',
+	monthsUntil: '今から{delta}ヶ月',
+	yearUntil: '今から1年',
+	yearsUntil: '今から{delta}年'
+
+});
+
+
+/*
+---
+
+name: Locale.ja-JP.Form.Validator
+
+description: Form Validator messages for Japanese.
+
+license: MIT-style license
+
+authors:
+  - Noritaka Horio
+
+requires:
+  - /Locale
+
+provides: [Locale.ja-JP.Form.Validator]
+
+...
+*/
+
+Locale.define("ja-JP", "FormValidator", {
+
+	required: '入力は必須です。',
+	minLength: '入力文字数は{minLength}以上にしてください。({length}文字)',
+	maxLength: '入力文字数は{maxLength}以下にしてください。({length}文字)',
+	integer: '整数を入力してください。',
+	numeric: '入力できるのは数値だけです。(例: "1", "1.1", "-1", "-1.1"....)',
+	digits: '入力できるのは数値と句読記号です。 (例: -や+を含む電話番号など).',
+	alpha: '入力できるのは半角英字だけです。それ以外の文字は入力できません。',
+	alphanum: '入力できるのは半角英数字だけです。それ以外の文字は入力できません。',
+	dateSuchAs: '有効な日付を入力してください。{date}',
+	dateInFormatMDY: '日付の書式に誤りがあります。YYYY/MM/DD (i.e. "1999/12/31")',
+	email: 'メールアドレスに誤りがあります。',
+	url: 'URLアドレスに誤りがあります。',
+	currencyDollar: '金額に誤りがあります。',
+	oneRequired: 'ひとつ以上入力してください。',
+	errorPrefix: 'エラー: ',
+	warningPrefix: '警告: ',
+
+	// FormValidator.Extras
+	noSpace: 'スペースは入力できません。',
+	reqChkByNode: '選択されていません。',
+	requiredChk: 'この項目は必須です。',
+	reqChkByName: '{label}を選択してください。',
+	match: '{matchName}が入力されている場合必須です。',
+	startDate: '開始日',
+	endDate: '終了日',
+	currendDate: '今日',
+	afterDate: '{label}以降の日付にしてください。',
+	beforeDate: '{label}以前の日付にしてください。',
+	startMonth: '開始月を選択してください。',
+	sameMonth: '日付が同一です。どちらかを変更してください。'
+
+});
+
+
+/*
+---
+
+name: Locale.ja-JP.Number
+
+description: Number messages for Japanese.
+
+license: MIT-style license
+
+authors:
+  - Noritaka Horio
+
+requires:
+  - /Locale
+
+provides: [Locale.ja-JP.Number]
+
+...
+*/
+
+Locale.define('ja-JP', 'Number', {
+
+	decimal: '.',
+	group: ',',
+
+	currency: {
+		decimals: 0,
+		prefix: '\\'
+	}
+
+});
+
+
+/*
+---
+
+name: Locale.nl-NL.Date
+
+description: Date messages for Dutch.
+
+license: MIT-style license
+
+authors:
+  - Lennart Pilon
+  - Tim Wienk
+
+requires:
+  - /Locale
+
+provides: [Locale.nl-NL.Date]
+
+...
+*/
+
+Locale.define('nl-NL', 'Date', {
+
+	months: ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'],
+	months_abbr: ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'],
+	days: ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'],
+	days_abbr: ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'],
+
+	// Culture's date order: DD-MM-YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d-%m-%Y',
+	shortTime: '%H:%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: 'e',
+
+	lessThanMinuteAgo: 'minder dan een minuut geleden',
+	minuteAgo: 'ongeveer een minuut geleden',
+	minutesAgo: '{delta} minuten geleden',
+	hourAgo: 'ongeveer een uur geleden',
+	hoursAgo: 'ongeveer {delta} uur geleden',
+	dayAgo: 'een dag geleden',
+	daysAgo: '{delta} dagen geleden',
+	weekAgo: 'een week geleden',
+	weeksAgo: '{delta} weken geleden',
+	monthAgo: 'een maand geleden',
+	monthsAgo: '{delta} maanden geleden',
+	yearAgo: 'een jaar geleden',
+	yearsAgo: '{delta} jaar geleden',
+
+	lessThanMinuteUntil: 'over minder dan een minuut',
+	minuteUntil: 'over ongeveer een minuut',
+	minutesUntil: 'over {delta} minuten',
+	hourUntil: 'over ongeveer een uur',
+	hoursUntil: 'over {delta} uur',
+	dayUntil: 'over ongeveer een dag',
+	daysUntil: 'over {delta} dagen',
+	weekUntil: 'over een week',
+	weeksUntil: 'over {delta} weken',
+	monthUntil: 'over een maand',
+	monthsUntil: 'over {delta} maanden',
+	yearUntil: 'over een jaar',
+	yearsUntil: 'over {delta} jaar'
+
+});
+
+
+/*
+---
+
+name: Locale.nl-NL.Form.Validator
+
+description: Form Validator messages for Dutch.
+
+license: MIT-style license
+
+authors:
+  - Lennart Pilon
+  - Arian Stolwijk
+  - Tim Wienk
+
+requires:
+  - /Locale
+
+provides: [Locale.nl-NL.Form.Validator]
+
+...
+*/
+
+Locale.define('nl-NL', 'FormValidator', {
+
+	required: 'Dit veld is verplicht.',
+	minLength: 'Vul minimaal {minLength} karakters in (je hebt {length} karakters ingevoerd).',
+	maxLength: 'Vul niet meer dan {maxLength} karakters in (je hebt {length} karakters ingevoerd).',
+	integer: 'Vul een getal in. Getallen met decimalen (bijvoorbeeld 1.25) zijn niet toegestaan.',
+	numeric: 'Vul alleen numerieke waarden in (bijvoorbeeld "1" of "1.1" of "-1" of "-1.1").',
+	digits: 'Vul alleen nummers en leestekens in (bijvoorbeeld een telefoonnummer met streepjes is toegestaan).',
+	alpha: 'Vul alleen letters in (a-z). Spaties en andere karakters zijn niet toegestaan.',
+	alphanum: 'Vul alleen letters (a-z) of nummers (0-9) in. Spaties en andere karakters zijn niet toegestaan.',
+	dateSuchAs: 'Vul een geldige datum in, zoals {date}',
+	dateInFormatMDY: 'Vul een geldige datum, in het formaat MM/DD/YYYY (bijvoorbeeld "12/31/1999")',
+	email: 'Vul een geldig e-mailadres in. Bijvoorbeeld "fred@domein.nl".',
+	url: 'Vul een geldige URL in, zoals http://www.example.com.',
+	currencyDollar: 'Vul een geldig $ bedrag in. Bijvoorbeeld $100.00 .',
+	oneRequired: 'Vul iets in bij in ieder geval een van deze velden.',
+	warningPrefix: 'Waarschuwing: ',
+	errorPrefix: 'Fout: ',
+
+	// Form.Validator.Extras
+	noSpace: 'Spaties zijn niet toegestaan in dit veld.',
+	reqChkByNode: 'Er zijn geen items geselecteerd.',
+	requiredChk: 'Dit veld is verplicht.',
+	reqChkByName: 'Selecteer een {label}.',
+	match: 'Dit veld moet overeen komen met het {matchName} veld',
+	startDate: 'de begin datum',
+	endDate: 'de eind datum',
+	currendDate: 'de huidige datum',
+	afterDate: 'De datum moet hetzelfde of na {label} zijn.',
+	beforeDate: 'De datum moet hetzelfde of voor {label} zijn.',
+	startMonth: 'Selecteer een begin maand',
+	sameMonth: 'Deze twee data moeten in dezelfde maand zijn - u moet een van beide aanpassen.',
+	creditcard: 'Het ingevulde creditcardnummer is niet geldig. Controleer het nummer en probeer opnieuw. {length} getallen ingevuld.'
+
+});
+
+
+/*
+---
+
+name: Locale.nl-NL.Number
+
+description: Number messages for Dutch.
+
+license: MIT-style license
+
+authors:
+  - Arian Stolwijk
+
+requires:
+  - /Locale
+  - /Locale.EU.Number
+
+provides: [Locale.nl-NL.Number]
+
+...
+*/
+
+Locale.define('nl-NL').inherit('EU', 'Number');
+
+
+
+
+
+/*
+---
+
+name: Locale.no-NO.Date
+
+description: Date messages for Norwegian.
+
+license: MIT-style license
+
+authors:
+  - Espen 'Rexxars' Hovlandsdal
+
+requires:
+  - /Locale
+
+provides: [Locale.no-NO.Date]
+
+...
+*/
+
+Locale.define('no-NO', 'Date', {
+
+	// Culture's date order: DD.MM.YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d.%m.%Y',
+	shortTime: '%H:%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	lessThanMinuteAgo: 'kortere enn et minutt siden',
+	minuteAgo: 'omtrent et minutt siden',
+	minutesAgo: '{delta} minutter siden',
+	hourAgo: 'omtrent en time siden',
+	hoursAgo: 'omtrent {delta} timer siden',
+	dayAgo: '{delta} dag siden',
+	daysAgo: '{delta} dager siden'
+
+});
+
+
+/*
+---
+
+name: Locale.no-NO.Form.Validator
+
+description: Form Validator messages for Norwegian.
+
+license: MIT-style license
+
+authors:
+  - Espen 'Rexxars' Hovlandsdal
+
+requires:
+  - /Locale
+
+provides: [Locale.no-NO.Form.Validator]
+
+...
+*/
+
+Locale.define('no-NO', 'FormValidator', {
+
+	required: 'Dette feltet er pÃ¥krevd.',
+	minLength: 'Vennligst skriv inn minst {minLength} tegn (du skrev {length} tegn).',
+	maxLength: 'Vennligst skriv inn maksimalt {maxLength} tegn (du skrev {length} tegn).',
+	integer: 'Vennligst skriv inn et tall i dette feltet. Tall med desimaler (for eksempel 1,25) er ikke tillat.',
+	numeric: 'Vennligst skriv inn kun numeriske verdier i dette feltet (for eksempel "1", "1.1", "-1" eller "-1.1").',
+	digits: 'Vennligst bruk kun nummer og skilletegn i dette feltet.',
+	alpha: 'Vennligst bruk kun bokstaver (a-z) i dette feltet. Ingen mellomrom eller andre tegn er tillat.',
+	alphanum: 'Vennligst bruk kun bokstaver (a-z) eller nummer (0-9) i dette feltet. Ingen mellomrom eller andre tegn er tillat.',
+	dateSuchAs: 'Vennligst skriv inn en gyldig dato, som {date}',
+	dateInFormatMDY: 'Vennligst skriv inn en gyldig dato, i formatet MM/DD/YYYY (for eksempel "12/31/1999")',
+	email: 'Vennligst skriv inn en gyldig epost-adresse. For eksempel "espen@domene.no".',
+	url: 'Vennligst skriv inn en gyldig URL, for eksempel http://www.example.com.',
+	currencyDollar: 'Vennligst fyll ut et gyldig $ belÃ¸p. For eksempel $100.00 .',
+	oneRequired: 'Vennligst fyll ut noe i minst ett av disse feltene.',
+	errorPrefix: 'Feil: ',
+	warningPrefix: 'Advarsel: '
+
+});
+
+
+/*
+---
+
+name: Locale.pl-PL.Date
+
+description: Date messages for Polish.
+
+license: MIT-style license
+
+authors:
+  - Oskar Krawczyk
+
+requires:
+  - /Locale
+
+provides: [Locale.pl-PL.Date]
+
+...
+*/
+
+Locale.define('pl-PL', 'Date', {
+
+	months: ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'],
+	months_abbr: ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'],
+	days: ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'],
+	days_abbr: ['niedz.', 'pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.'],
+
+	// Culture's date order: YYYY-MM-DD
+	dateOrder: ['year', 'month', 'date'],
+	shortDate: '%Y-%m-%d',
+	shortTime: '%H:%M',
+	AM: 'nad ranem',
+	PM: 'po południu',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: function(dayOfMonth){
+		return (dayOfMonth > 3 && dayOfMonth < 21) ? 'ty' : ['ty', 'szy', 'gi', 'ci', 'ty'][Math.min(dayOfMonth % 10, 4)];
+	},
+
+	lessThanMinuteAgo: 'mniej niż minute temu',
+	minuteAgo: 'około minutę temu',
+	minutesAgo: '{delta} minut temu',
+	hourAgo: 'około godzinę temu',
+	hoursAgo: 'około {delta} godzin temu',
+	dayAgo: 'Wczoraj',
+	daysAgo: '{delta} dni temu',
+
+	lessThanMinuteUntil: 'za niecałą minutę',
+	minuteUntil: 'za około minutę',
+	minutesUntil: 'za {delta} minut',
+	hourUntil: 'za około godzinę',
+	hoursUntil: 'za około {delta} godzin',
+	dayUntil: 'za 1 dzień',
+	daysUntil: 'za {delta} dni'
+
+});
+
+
+/*
+---
+
+name: Locale.pl-PL.Form.Validator
+
+description: Form Validator messages for Polish.
+
+license: MIT-style license
+
+authors:
+  - Oskar Krawczyk
+
+requires:
+  - /Locale
+
+provides: [Locale.pl-PL.Form.Validator]
+
+...
+*/
+
+Locale.define('pl-PL', 'FormValidator', {
+
+	required: 'To pole jest wymagane.',
+	minLength: 'Wymagane jest przynajmniej {minLength} znaków (wpisanych zostało tylko {length}).',
+	maxLength: 'Dozwolone jest nie więcej niż {maxLength} znaków (wpisanych zostało {length})',
+	integer: 'To pole wymaga liczb całych. Liczby dziesiętne (np. 1.25) są niedozwolone.',
+	numeric: 'Prosimy używać tylko numerycznych wartości w tym polu (np. "1", "1.1", "-1" lub "-1.1").',
+	digits: 'Prosimy używać liczb oraz zankow punktuacyjnych w typ polu (dla przykładu, przy numerze telefonu myślniki i kropki są dozwolone).',
+	alpha: 'Prosimy używać tylko liter (a-z) w tym polu. Spacje oraz inne znaki są niedozwolone.',
+	alphanum: 'Prosimy używać tylko liter (a-z) lub liczb (0-9) w tym polu. Spacje oraz inne znaki są niedozwolone.',
+	dateSuchAs: 'Prosimy podać prawidłową datę w formacie: {date}',
+	dateInFormatMDY: 'Prosimy podać poprawną date w formacie DD.MM.RRRR (i.e. "12.01.2009")',
+	email: 'Prosimy podać prawidłowy adres e-mail, np. "jan@domena.pl".',
+	url: 'Prosimy podać prawidłowy adres URL, np. http://www.example.com.',
+	currencyDollar: 'Prosimy podać prawidłową sumę w PLN. Dla przykładu: 100.00 PLN.',
+	oneRequired: 'Prosimy wypełnić chociaż jedno z pól.',
+	errorPrefix: 'Błąd: ',
+	warningPrefix: 'Uwaga: ',
+
+	// Form.Validator.Extras
+	noSpace: 'W tym polu nie mogą znajdować się spacje.',
+	reqChkByNode: 'Brak zaznaczonych elementów.',
+	requiredChk: 'To pole jest wymagane.',
+	reqChkByName: 'Prosimy wybrać z {label}.',
+	match: 'To pole musi być takie samo jak {matchName}',
+	startDate: 'data początkowa',
+	endDate: 'data końcowa',
+	currendDate: 'aktualna data',
+	afterDate: 'Podana data poinna być taka sama lub po {label}.',
+	beforeDate: 'Podana data poinna być taka sama lub przed {label}.',
+	startMonth: 'Prosimy wybrać początkowy miesiąc.',
+	sameMonth: 'Te dwie daty muszą być w zakresie tego samego miesiąca - wymagana jest zmiana któregoś z pól.'
+
+});
+
+
+/*
+---
+
+name: Locale.pt-PT.Date
+
+description: Date messages for Portuguese.
+
+license: MIT-style license
+
+authors:
+  - Fabio Miranda Costa
+
+requires:
+  - /Locale
+
+provides: [Locale.pt-PT.Date]
+
+...
+*/
+
+Locale.define('pt-PT', 'Date', {
+
+	months: ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'],
+	months_abbr: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+	days: ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'],
+	days_abbr: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'],
+
+	// Culture's date order: DD-MM-YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d-%m-%Y',
+	shortTime: '%H:%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: 'º',
+
+	lessThanMinuteAgo: 'há menos de um minuto',
+	minuteAgo: 'há cerca de um minuto',
+	minutesAgo: 'há {delta} minutos',
+	hourAgo: 'há cerca de uma hora',
+	hoursAgo: 'há cerca de {delta} horas',
+	dayAgo: 'há um dia',
+	daysAgo: 'há {delta} dias',
+	weekAgo: 'há uma semana',
+	weeksAgo: 'há {delta} semanas',
+	monthAgo: 'há um mês',
+	monthsAgo: 'há {delta} meses',
+	yearAgo: 'há um ano',
+	yearsAgo: 'há {delta} anos',
+
+	lessThanMinuteUntil: 'em menos de um minuto',
+	minuteUntil: 'em um minuto',
+	minutesUntil: 'em {delta} minutos',
+	hourUntil: 'em uma hora',
+	hoursUntil: 'em {delta} horas',
+	dayUntil: 'em um dia',
+	daysUntil: 'em {delta} dias',
+	weekUntil: 'em uma semana',
+	weeksUntil: 'em {delta} semanas',
+	monthUntil: 'em um mês',
+	monthsUntil: 'em {delta} meses',
+	yearUntil: 'em um ano',
+	yearsUntil: 'em {delta} anos'
+
+});
+
+
+/*
+---
+
+name: Locale.pt-BR.Date
+
+description: Date messages for Portuguese (Brazil).
+
+license: MIT-style license
+
+authors:
+  - Fabio Miranda Costa
+
+requires:
+  - /Locale
+  - /Locale.pt-PT.Date
+
+provides: [Locale.pt-BR.Date]
+
+...
+*/
+
+Locale.define('pt-BR', 'Date', {
+
+	// Culture's date order: DD/MM/YYYY
+	shortDate: '%d/%m/%Y'
+
+}).inherit('pt-PT', 'Date');
+
+
+/*
+---
+
+name: Locale.pt-BR.Form.Validator
+
+description: Form Validator messages for Portuguese (Brazil).
+
+license: MIT-style license
+
+authors:
+  - Fábio Miranda Costa
+
+requires:
+  - /Locale
+
+provides: [Locale.pt-BR.Form.Validator]
+
+...
+*/
+
+Locale.define('pt-BR', 'FormValidator', {
+
+	required: 'Este campo é obrigatório.',
+	minLength: 'Digite pelo menos {minLength} caracteres (tamanho atual: {length}).',
+	maxLength: 'Não digite mais de {maxLength} caracteres (tamanho atual: {length}).',
+	integer: 'Por favor digite apenas um número inteiro neste campo. Não são permitidos números decimais (por exemplo, 1,25).',
+	numeric: 'Por favor digite apenas valores numéricos neste campo (por exemplo, "1" ou "1.1" ou "-1" ou "-1,1").',
+	digits: 'Por favor use apenas números e pontuação neste campo (por exemplo, um número de telefone com traços ou pontos é permitido).',
+	alpha: 'Por favor use somente letras (a-z). Espaço e outros caracteres não são permitidos.',
+	alphanum: 'Use somente letras (a-z) ou números (0-9) neste campo. Espaço e outros caracteres não são permitidos.',
+	dateSuchAs: 'Digite uma data válida, como {date}',
+	dateInFormatMDY: 'Digite uma data válida, como DD/MM/YYYY (por exemplo, "31/12/1999")',
+	email: 'Digite um endereço de email válido. Por exemplo "nome@dominio.com".',
+	url: 'Digite uma URL válida. Exemplo: http://www.example.com.',
+	currencyDollar: 'Digite um valor em dinheiro válido. Exemplo: R$100,00 .',
+	oneRequired: 'Digite algo para pelo menos um desses campos.',
+	errorPrefix: 'Erro: ',
+	warningPrefix: 'Aviso: ',
+
+	// Form.Validator.Extras
+	noSpace: 'Não é possível digitar espaços neste campo.',
+	reqChkByNode: 'Não foi selecionado nenhum item.',
+	requiredChk: 'Este campo é obrigatório.',
+	reqChkByName: 'Por favor digite um {label}.',
+	match: 'Este campo deve ser igual ao campo {matchName}.',
+	startDate: 'a data inicial',
+	endDate: 'a data final',
+	currendDate: 'a data atual',
+	afterDate: 'A data deve ser igual ou posterior a {label}.',
+	beforeDate: 'A data deve ser igual ou anterior a {label}.',
+	startMonth: 'Por favor selecione uma data inicial.',
+	sameMonth: 'Estas duas datas devem ter o mesmo mês - você deve modificar uma das duas.',
+	creditcard: 'O número do cartão de crédito informado é inválido. Por favor verifique o valor e tente novamente. {length} números informados.'
+
+});
+
+
+/*
+---
+
+name: Locale.pt-PT.Form.Validator
+
+description: Form Validator messages for Portuguese.
+
+license: MIT-style license
+
+authors:
+  - Miquel Hudin
+
+requires:
+  - /Locale
+
+provides: [Locale.pt-PT.Form.Validator]
+
+...
+*/
+
+Locale.define('pt-PT', 'FormValidator', {
+
+	required: 'Este campo é necessário.',
+	minLength: 'Digite pelo menos{minLength} caracteres (comprimento {length} caracteres).',
+	maxLength: 'Não insira mais de {maxLength} caracteres (comprimento {length} caracteres).',
+	integer: 'Digite um número inteiro neste domínio. Com números decimais (por exemplo, 1,25), não são permitidas.',
+	numeric: 'Digite apenas valores numéricos neste domínio (p.ex., "1" ou "1.1" ou "-1" ou "-1,1").',
+	digits: 'Por favor, use números e pontuação apenas neste campo (p.ex., um número de telefone com traços ou pontos é permitida).',
+	alpha: 'Por favor use somente letras (a-z), com nesta área. Não utilize espaços nem outros caracteres são permitidos.',
+	alphanum: 'Use somente letras (a-z) ou números (0-9) neste campo. Não utilize espaços nem outros caracteres são permitidos.',
+	dateSuchAs: 'Digite uma data válida, como {date}',
+	dateInFormatMDY: 'Digite uma data válida, como DD/MM/YYYY (p.ex. "31/12/1999")',
+	email: 'Digite um endereço de email válido. Por exemplo "fred@domain.com".',
+	url: 'Digite uma URL válida, como http://www.example.com.',
+	currencyDollar: 'Digite um valor válido $. Por exemplo $ 100,00. ',
+	oneRequired: 'Digite algo para pelo menos um desses insumos.',
+	errorPrefix: 'Erro: ',
+	warningPrefix: 'Aviso: '
+
+});
+
+
+/*
+---
+
+name: Locale.ru-RU-unicode.Date
+
+description: Date messages for Russian (utf-8).
+
+license: MIT-style license
+
+authors:
+  - Evstigneev Pavel
+  - Kuryanovich Egor
+
+requires:
+  - /Locale
+
+provides: [Locale.ru-RU.Date]
+
+...
+*/
+
+(function(){
+
+// Russian language pluralization rules, taken from CLDR project, http://unicode.org/cldr/
+// one -> n mod 10 is 1 and n mod 100 is not 11;
+// few -> n mod 10 in 2..4 and n mod 100 not in 12..14;
+// many -> n mod 10 is 0 or n mod 10 in 5..9 or n mod 100 in 11..14;
+// other -> everything else (example 3.14)
+var pluralize = function (n, one, few, many, other){
+	var modulo10 = n % 10,
+		modulo100 = n % 100;
+
+	if (modulo10 == 1 && modulo100 != 11){
+		return one;
+	} else if ((modulo10 == 2 || modulo10 == 3 || modulo10 == 4) && !(modulo100 == 12 || modulo100 == 13 || modulo100 == 14)){
+		return few;
+	} else if (modulo10 == 0 || (modulo10 == 5 || modulo10 == 6 || modulo10 == 7 || modulo10 == 8 || modulo10 == 9) || (modulo100 == 11 || modulo100 == 12 || modulo100 == 13 || modulo100 == 14)){
+		return many;
+	} else {
+		return other;
+	}
+};
+
+Locale.define('ru-RU', 'Date', {
+
+	months: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
+	months_abbr: ['янв', 'февр', 'март', 'апр', 'май','июнь','июль','авг','сент','окт','нояб','дек'],
+	days: ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'],
+	days_abbr: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
+
+	// Culture's date order: DD.MM.YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d.%m.%Y',
+	shortTime: '%H:%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '',
+
+	lessThanMinuteAgo: 'меньше минуты назад',
+	minuteAgo: 'минуту назад',
+	minutesAgo: function(delta){ return '{delta} ' + pluralize(delta, 'минуту', 'минуты', 'минут') + ' назад'; },
+	hourAgo: 'час назад',
+	hoursAgo: function(delta){ return '{delta} ' + pluralize(delta, 'час', 'часа', 'часов') + ' назад'; },
+	dayAgo: 'вчера',
+	daysAgo: function(delta){ return '{delta} ' + pluralize(delta, 'день', 'дня', 'дней') + ' назад'; },
+	weekAgo: 'неделю назад',
+	weeksAgo: function(delta){ return '{delta} ' + pluralize(delta, 'неделя', 'недели', 'недель') + ' назад'; },
+	monthAgo: 'месяц назад',
+	monthsAgo: function(delta){ return '{delta} ' + pluralize(delta, 'месяц', 'месяца', 'месецев') + ' назад'; },
+	yearAgo: 'год назад',
+	yearsAgo: function(delta){ return '{delta} ' + pluralize(delta, 'год', 'года', 'лет') + ' назад'; },
+
+	lessThanMinuteUntil: 'меньше чем через минуту',
+	minuteUntil: 'через минуту',
+	minutesUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'час', 'часа', 'часов') + ''; },
+	hourUntil: 'через час',
+	hoursUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'час', 'часа', 'часов') + ''; },
+	dayUntil: 'завтра',
+	daysUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'день', 'дня', 'дней') + ''; },
+	weekUntil: 'через неделю',
+	weeksUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'неделю', 'недели', 'недель') + ''; },
+	monthUntil: 'через месяц',
+	monthsUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'месяц', 'месяца', 'месецев') + ''; },
+	yearUntil: 'через',
+	yearsUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'год', 'года', 'лет') + ''; }
+
+});
+
+
+
+})();
+
+
+/*
+---
+
+name: Locale.ru-RU-unicode.Form.Validator
+
+description: Form Validator messages for Russian (utf-8).
+
+license: MIT-style license
+
+authors:
+  - Chernodarov Egor
+
+requires:
+  - /Locale
+
+provides: [Locale.ru-RU.Form.Validator]
+
+...
+*/
+
+Locale.define('ru-RU', 'FormValidator', {
+
+	required: 'Это поле обязательно к заполнению.',
+	minLength: 'Пожалуйста, введите хотя бы {minLength} символов (Вы ввели {length}).',
+	maxLength: 'Пожалуйста, введите не больше {maxLength} символов (Вы ввели {length}).',
+	integer: 'Пожалуйста, введите в это поле число. Дробные числа (например 1.25) тут не разрешены.',
+	numeric: 'Пожалуйста, введите в это поле число (например "1" или "1.1", или "-1", или "-1.1").',
+	digits: 'В этом поле Вы можете использовать только цифры и знаки пунктуации (например, телефонный номер со знаками дефиса или с точками).',
+	alpha: 'В этом поле можно использовать только латинские буквы (a-z). Пробелы и другие символы запрещены.',
+	alphanum: 'В этом поле можно использовать только латинские буквы (a-z) и цифры (0-9). Пробелы и другие символы запрещены.',
+	dateSuchAs: 'Пожалуйста, введите корректную дату {date}',
+	dateInFormatMDY: 'Пожалуйста, введите дату в формате ММ/ДД/ГГГГ (например "12/31/1999")',
+	email: 'Пожалуйста, введите корректный емейл-адрес. Для примера "fred@domain.com".',
+	url: 'Пожалуйста, введите правильную ссылку вида http://www.example.com.',
+	currencyDollar: 'Пожалуйста, введите сумму в долларах. Например: $100.00 .',
+	oneRequired: 'Пожалуйста, выберите хоть что-нибудь в одном из этих полей.',
+	errorPrefix: 'Ошибка: ',
+	warningPrefix: 'Внимание: '
+
+});
+
+
+
+
+/*
+---
+
+name: Locale.si-SI.Date
+
+description: Date messages for Slovenian.
+
+license: MIT-style license
+
+authors:
+  - Radovan Lozej
+
+requires:
+  - /Locale
+
+provides: [Locale.si-SI.Date]
+
+...
+*/
+
+(function(){
+
+var pluralize = function(n, one, two, three, other){
+	return (n >= 1 && n <= 3) ? arguments[n] : other;
+};
+
+Locale.define('si-SI', 'Date', {
+
+	months: ['januar', 'februar', 'marec', 'april', 'maj', 'junij', 'julij', 'avgust', 'september', 'oktober', 'november', 'december'],
+	months_abbr: ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'avg', 'sep', 'okt', 'nov', 'dec'],
+	days: ['nedelja', 'ponedeljek', 'torek', 'sreda', 'četrtek', 'petek', 'sobota'],
+	days_abbr: ['ned', 'pon', 'tor', 'sre', 'čet', 'pet', 'sob'],
+
+	// Culture's date order: DD.MM.YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d.%m.%Y',
+	shortTime: '%H.%M',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '.',
+
+	lessThanMinuteAgo: 'manj kot minuto nazaj',
+	minuteAgo: 'minuto nazaj',
+	minutesAgo: function(delta){ return '{delta} ' + pluralize(delta, 'minuto', 'minuti', 'minute', 'minut') + ' nazaj'; },
+	hourAgo: 'uro nazaj',
+	hoursAgo: function(delta){ return '{delta} ' + pluralize(delta, 'uro', 'uri', 'ure', 'ur') + ' nazaj'; },
+	dayAgo: 'dan nazaj',
+	daysAgo: function(delta){ return '{delta} ' + pluralize(delta, 'dan', 'dneva', 'dni', 'dni') + ' nazaj'; },
+	weekAgo: 'teden nazaj',
+	weeksAgo: function(delta){ return '{delta} ' + pluralize(delta, 'teden', 'tedna', 'tedne', 'tednov') + ' nazaj'; },
+	monthAgo: 'mesec nazaj',
+	monthsAgo: function(delta){ return '{delta} ' + pluralize(delta, 'mesec', 'meseca', 'mesece', 'mesecov') + ' nazaj'; },
+	yearthAgo: 'leto nazaj',
+	yearsAgo: function(delta){ return '{delta} ' + pluralize(delta, 'leto', 'leti', 'leta', 'let') + ' nazaj'; },
+
+	lessThanMinuteUntil: 'še manj kot minuto',
+	minuteUntil: 'še minuta',
+	minutesUntil: function(delta){ return 'še {delta} ' + pluralize(delta, 'minuta', 'minuti', 'minute', 'minut'); },
+	hourUntil: 'še ura',
+	hoursUntil: function(delta){ return 'še {delta} ' + pluralize(delta, 'ura', 'uri', 'ure', 'ur'); },
+	dayUntil: 'še dan',
+	daysUntil: function(delta){ return 'še {delta} ' + pluralize(delta, 'dan', 'dneva', 'dnevi', 'dni'); },
+	weekUntil: 'še tedn',
+	weeksUntil: function(delta){ return 'še {delta} ' + pluralize(delta, 'teden', 'tedna', 'tedni', 'tednov'); },
+	monthUntil: 'še mesec',
+	monthsUntil: function(delta){ return 'še {delta} ' + pluralize(delta, 'mesec', 'meseca', 'meseci', 'mesecov'); },
+	yearUntil: 'še leto',
+	yearsUntil: function(delta){ return 'še {delta} ' + pluralize(delta, 'leto', 'leti', 'leta', 'let'); }
+
+});
+
+})();
+
+
+/*
+---
+
+name: Locale.si-SI.Form.Validator
+
+description: Form Validator messages for Slovenian.
+
+license: MIT-style license
+
+authors:
+  - Radovan Lozej
+
+requires:
+  - /Locale
+
+provides: [Locale.si-SI.Form.Validator]
+
+...
+*/
+
+Locale.define('si-SI', 'FormValidator', {
+
+	required: 'To polje je obvezno',
+	minLength: 'Prosim, vnesite vsaj {minLength} znakov (vnesli ste {length} znakov).',
+	maxLength: 'Prosim, ne vnesite več kot {maxLength} znakov (vnesli ste {length} znakov).',
+	integer: 'Prosim, vnesite celo število. Decimalna števila (kot 1,25) niso dovoljena.',
+	numeric: 'Prosim, vnesite samo numerične vrednosti (kot "1" ali "1.1" ali "-1" ali "-1.1").',
+	digits: 'Prosim, uporabite številke in ločila le na tem polju (na primer, dovoljena je telefonska številka z pomišlaji ali pikami).',
+	alpha: 'Prosim, uporabite le črke v tem plju. Presledki in drugi znaki niso dovoljeni.',
+	alphanum: 'Prosim, uporabite samo črke ali številke v tem polju. Presledki in drugi znaki niso dovoljeni.',
+	dateSuchAs: 'Prosim, vnesite pravilen datum kot {date}',
+	dateInFormatMDY: 'Prosim, vnesite pravilen datum kot MM.DD.YYYY (primer "12.31.1999")',
+	email: 'Prosim, vnesite pravilen email naslov. Na primer "fred@domain.com".',
+	url: 'Prosim, vnesite pravilen URL kot http://www.example.com.',
+	currencyDollar: 'Prosim, vnesit epravilno vrednost €. Primer 100,00€ .',
+	oneRequired: 'Prosimo, vnesite nekaj za vsaj eno izmed teh polj.',
+	errorPrefix: 'Napaka: ',
+	warningPrefix: 'Opozorilo: ',
+
+	// Form.Validator.Extras
+	noSpace: 'To vnosno polje ne dopušča presledkov.',
+	reqChkByNode: 'Nič niste izbrali.',
+	requiredChk: 'To polje je obvezno',
+	reqChkByName: 'Prosim, izberite {label}.',
+	match: 'To polje se mora ujemati z poljem {matchName}',
+	startDate: 'datum začetka',
+	endDate: 'datum konca',
+	currendDate: 'trenuten datum',
+	afterDate: 'Datum bi moral biti isti ali po {label}.',
+	beforeDate: 'Datum bi moral biti isti ali pred {label}.',
+	startMonth: 'Prosim, vnesite začetni datum',
+	sameMonth: 'Ta dva datuma morata biti v istem mesecu - premeniti morate eno ali drugo.',
+	creditcard: 'Številka kreditne kartice ni pravilna. Preverite številko ali poskusite še enkrat. Vnešenih {length} znakov.'
+
+});
+
+
+/*
+---
+
+name: Locale.sv-SE.Date
+
+description: Date messages for Swedish.
+
+license: MIT-style license
+
+authors:
+  - Martin Lundgren
+
+requires:
+  - /Locale
+
+provides: [Locale.sv-SE.Date]
+
+...
+*/
+
+Locale.define('sv-SE', 'Date', {
+
+	months: ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 'juli', 'augusti', 'september', 'oktober', 'november', 'december'],
+	months_abbr: ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'],
+	days: ['söndag', 'måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag'],
+	days_abbr: ['sön', 'mån', 'tis', 'ons', 'tor', 'fre', 'lör'],
+
+	// Culture's date order: YYYY-MM-DD
+	dateOrder: ['year', 'month', 'date'],
+	shortDate: '%Y-%m-%d',
+	shortTime: '%H:%M',
+	AM: '',
+	PM: '',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '',
+
+	lessThanMinuteAgo: 'mindre än en minut sedan',
+	minuteAgo: 'ungefär en minut sedan',
+	minutesAgo: '{delta} minuter sedan',
+	hourAgo: 'ungefär en timme sedan',
+	hoursAgo: 'ungefär {delta} timmar sedan',
+	dayAgo: '1 dag sedan',
+	daysAgo: '{delta} dagar sedan',
+
+	lessThanMinuteUntil: 'mindre än en minut sedan',
+	minuteUntil: 'ungefär en minut sedan',
+	minutesUntil: '{delta} minuter sedan',
+	hourUntil: 'ungefär en timme sedan',
+	hoursUntil: 'ungefär {delta} timmar sedan',
+	dayUntil: '1 dag sedan',
+	daysUntil: '{delta} dagar sedan'
+
+});
+
+
+/*
+---
+
+name: Locale.sv-SE.Form.Validator
+
+description: Form Validator messages for Swedish.
+
+license: MIT-style license
+
+authors:
+  - Martin Lundgren
+
+requires:
+  - /Locale
+
+provides: [Locale.sv-SE.Form.Validator]
+
+...
+*/
+
+Locale.define('sv-SE', 'FormValidator', {
+
+	required: 'Fältet är obligatoriskt.',
+	minLength: 'Ange minst {minLength} tecken (du angav {length} tecken).',
+	maxLength: 'Ange högst {maxLength} tecken (du angav {length} tecken). ',
+	integer: 'Ange ett heltal i fältet. Tal med decimaler (t.ex. 1,25) är inte tillåtna.',
+	numeric: 'Ange endast numeriska värden i detta fält (t.ex. "1" eller "1.1" eller "-1" eller "-1,1").',
+	digits: 'Använd endast siffror och skiljetecken i detta fält (till exempel ett telefonnummer med bindestreck tillåtet).',
+	alpha: 'Använd endast bokstäver (a-ö) i detta fält. Inga mellanslag eller andra tecken är tillåtna.',
+	alphanum: 'Använd endast bokstäver (a-ö) och siffror (0-9) i detta fält. Inga mellanslag eller andra tecken är tillåtna.',
+	dateSuchAs: 'Ange ett giltigt datum som t.ex. {date}',
+	dateInFormatMDY: 'Ange ett giltigt datum som t.ex. YYYY-MM-DD (i.e. "1999-12-31")',
+	email: 'Ange en giltig e-postadress. Till exempel "erik@domain.com".',
+	url: 'Ange en giltig webbadress som http://www.example.com.',
+	currencyDollar: 'Ange en giltig belopp. Exempelvis 100,00.',
+	oneRequired: 'Vänligen ange minst ett av dessa alternativ.',
+	errorPrefix: 'Fel: ',
+	warningPrefix: 'Varning: ',
+
+	// Form.Validator.Extras
+	noSpace: 'Det får inte finnas några mellanslag i detta fält.',
+	reqChkByNode: 'Inga objekt är valda.',
+	requiredChk: 'Detta är ett obligatoriskt fält.',
+	reqChkByName: 'Välj en {label}.',
+	match: 'Detta fält måste matcha {matchName}',
+	startDate: 'startdatumet',
+	endDate: 'slutdatum',
+	currendDate: 'dagens datum',
+	afterDate: 'Datumet bör vara samma eller senare än {label}.',
+	beforeDate: 'Datumet bör vara samma eller tidigare än {label}.',
+	startMonth: 'Välj en start månad',
+	sameMonth: 'Dessa två datum måste vara i samma månad - du måste ändra det ena eller det andra.'
+
+});
+
+
+/*
+---
+
+name: Locale.uk-UA.Date
+
+description: Date messages for Ukrainian (utf-8).
+
+license: MIT-style license
+
+authors:
+  - Slik
+
+requires:
+  - /Locale
+
+provides: [Locale.uk-UA.Date]
+
+...
+*/
+
+(function(){
+
+var pluralize = function(n, one, few, many, other){
+	var d = (n / 10).toInt(),
+		z = n % 10,
+		s = (n / 100).toInt();
+
+	if (d == 1 && n > 10) return many;
+	if (z == 1) return one;
+	if (z > 0 && z < 5) return few;
+	return many;
+};
+
+Locale.define('uk-UA', 'Date', {
+
+	months: ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень', 'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'],
+	months_abbr: ['Січ', 'Лют', 'Бер', 'Квіт', 'Трав', 'Черв', 'Лип', 'Серп', 'Вер', 'Жовт', 'Лист', 'Груд' ],
+	days: ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', "П'ятниця", 'Субота'],
+	days_abbr: ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
+
+	// Culture's date order: DD/MM/YYYY
+	dateOrder: ['date', 'month', 'year'],
+	shortDate: '%d/%m/%Y',
+	shortTime: '%H:%M',
+	AM: 'до полудня',
+	PM: 'по полудню',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '',
+
+	lessThanMinuteAgo: 'меньше хвилини тому',
+	minuteAgo: 'хвилину тому',
+	minutesAgo: function(delta){ return '{delta} ' + pluralize(delta, 'хвилину', 'хвилини', 'хвилин') + ' тому'; },
+	hourAgo: 'годину тому',
+	hoursAgo: function(delta){ return '{delta} ' + pluralize(delta, 'годину', 'години', 'годин') + ' тому'; },
+	dayAgo: 'вчора',
+	daysAgo: function(delta){ return '{delta} ' + pluralize(delta, 'день', 'дня', 'днів') + ' тому'; },
+	weekAgo: 'тиждень тому',
+	weeksAgo: function(delta){ return '{delta} ' + pluralize(delta, 'тиждень', 'тижні', 'тижнів') + ' тому'; },
+	monthAgo: 'місяць тому',
+	monthsAgo: function(delta){ return '{delta} ' + pluralize(delta, 'місяць', 'місяці', 'місяців') + ' тому'; },
+	yearAgo: 'рік тому',
+	yearsAgo: function(delta){ return '{delta} ' + pluralize(delta, 'рік', 'роки', 'років') + ' тому'; },
+
+	lessThanMinuteUntil: 'за мить',
+	minuteUntil: 'через хвилину',
+	minutesUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'хвилину', 'хвилини', 'хвилин'); },
+	hourUntil: 'через годину',
+	hoursUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'годину', 'години', 'годин'); },
+	dayUntil: 'завтра',
+	daysUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'день', 'дня', 'днів'); },
+	weekUntil: 'через тиждень',
+	weeksUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'тиждень', 'тижні', 'тижнів'); },
+	monthUntil: 'через місяць',
+	monthesUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'місяць', 'місяці', 'місяців'); },
+	yearUntil: 'через рік',
+	yearsUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'рік', 'роки', 'років'); }
+
+});
+
+})();
+
+
+/*
+---
+
+name: Locale.uk-UA.Form.Validator
+
+description: Form Validator messages for Ukrainian (utf-8).
+
+license: MIT-style license
+
+authors:
+  - Slik
+
+requires:
+  - /Locale
+
+provides: [Locale.uk-UA.Form.Validator]
+
+...
+*/
+
+Locale.define('uk-UA', 'FormValidator', {
+
+	required: 'Це поле повинне бути заповненим.',
+	minLength: 'Введіть хоча б {minLength} символів (Ви ввели {length}).',
+	maxLength: 'Кількість символів не може бути більше {maxLength} (Ви ввели {length}).',
+	integer: 'Введіть в це поле число. Дробові числа (наприклад 1.25) не дозволені.',
+	numeric: 'Введіть в це поле число (наприклад "1" або "1.1", або "-1", або "-1.1").',
+	digits: 'В цьому полі ви можете використовувати лише цифри і знаки пунктіації (наприклад, телефонний номер з знаками дефізу або з крапками).',
+	alpha: 'В цьому полі можна використовувати лише латинські літери (a-z). Пробіли і інші символи заборонені.',
+	alphanum: 'В цьому полі можна використовувати лише латинські літери (a-z) і цифри (0-9). Пробіли і інші символи заборонені.',
+	dateSuchAs: 'Введіть коректну дату {date}.',
+	dateInFormatMDY: 'Введіть дату в форматі ММ/ДД/РРРР (наприклад "12/31/2009").',
+	email: 'Введіть коректну адресу електронної пошти (наприклад "name@domain.com").',
+	url: 'Введіть коректне інтернет-посилання (наприклад http://www.example.com).',
+	currencyDollar: 'Введіть суму в доларах (наприклад "$100.00").',
+	oneRequired: 'Заповніть одне з полів.',
+	errorPrefix: 'Помилка: ',
+	warningPrefix: 'Увага: ',
+
+	noSpace: 'Пробіли заборонені.',
+	reqChkByNode: 'Не відмічено жодного варіанту.',
+	requiredChk: 'Це поле повинне бути віміченим.',
+	reqChkByName: 'Будь ласка, відмітьте {label}.',
+	match: 'Це поле повинно відповідати {matchName}',
+	startDate: 'початкова дата',
+	endDate: 'кінцева дата',
+	currendDate: 'сьогоднішня дата',
+	afterDate: 'Ця дата повинна бути такою ж, або пізнішою за {label}.',
+	beforeDate: 'Ця дата повинна бути такою ж, або ранішою за {label}.',
+	startMonth: 'Будь ласка, виберіть початковий місяць',
+	sameMonth: 'Ці дати повинні відноситись одного і того ж місяця. Будь ласка, змініть одну з них.',
+	creditcard: 'Номер кредитної карти введений неправильно. Будь ласка, перевірте його. Введено {length} символів.'
+
+});
+
+
+/*
+---
+
+name: Locale.zh-CH.Date
+
+description: Date messages for Chinese (simplified and traditional).
+
+license: MIT-style license
+
+authors:
+  - YMind Chan
+
+requires:
+  - /Locale
+
+provides: [Locale.zh-CH.Date]
+
+...
+*/
+
+// Simplified Chinese
+Locale.define('zh-CHS', 'Date', {
+
+	months: ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'],
+	months_abbr: ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'],
+	days: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'],
+	days_abbr: ['日', '一', '二', '三', '四', '五', '六'],
+
+	// Culture's date order: YYYY-MM-DD
+	dateOrder: ['year', 'month', 'date'],
+	shortDate: '%Y-%m-%d',
+	shortTime: '%I:%M%p',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '',
+
+	lessThanMinuteAgo: '不到1分钟前',
+	minuteAgo: '大约1分钟前',
+	minutesAgo: '{delta}分钟之前',
+	hourAgo: '大约1小时前',
+	hoursAgo: '大约{delta}小时前',
+	dayAgo: '1天前',
+	daysAgo: '{delta}天前',
+	weekAgo: '1星期前',
+	weeksAgo: '{delta}星期前',
+	monthAgo: '1个月前',
+	monthsAgo: '{delta}个月前',
+	yearAgo: '1年前',
+	yearsAgo: '{delta}年前',
+
+	lessThanMinuteUntil: '从现在开始不到1分钟',
+	minuteUntil: '从现在开始約1分钟',
+	minutesUntil: '从现在开始约{delta}分钟',
+	hourUntil: '从现在开始1小时',
+	hoursUntil: '从现在开始约{delta}小时',
+	dayUntil: '从现在开始1天',
+	daysUntil: '从现在开始{delta}天',
+	weekUntil: '从现在开始1星期',
+	weeksUntil: '从现在开始{delta}星期',
+	monthUntil: '从现在开始一个月',
+	monthsUntil: '从现在开始{delta}个月',
+	yearUntil: '从现在开始1年',
+	yearsUntil: '从现在开始{delta}年'
+
+});
+
+// Traditional Chinese
+Locale.define('zh-CHT', 'Date', {
+
+	months: ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'],
+	months_abbr: ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'],
+	days: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'],
+	days_abbr: ['日', '一', '二', '三', '四', '五', '六'],
+
+	// Culture's date order: YYYY-MM-DD
+	dateOrder: ['year', 'month', 'date'],
+	shortDate: '%Y-%m-%d',
+	shortTime: '%I:%M%p',
+	AM: 'AM',
+	PM: 'PM',
+	firstDayOfWeek: 1,
+
+	// Date.Extras
+	ordinal: '',
+
+	lessThanMinuteAgo: '不到1分鐘前',
+	minuteAgo: '大約1分鐘前',
+	minutesAgo: '{delta}分鐘之前',
+	hourAgo: '大約1小時前',
+	hoursAgo: '大約{delta}小時前',
+	dayAgo: '1天前',
+	daysAgo: '{delta}天前',
+	weekAgo: '1星期前',
+	weeksAgo: '{delta}星期前',
+	monthAgo: '1个月前',
+	monthsAgo: '{delta}个月前',
+	yearAgo: '1年前',
+	yearsAgo: '{delta}年前',
+
+	lessThanMinuteUntil: '從現在開始不到1分鐘',
+	minuteUntil: '從現在開始約1分鐘',
+	minutesUntil: '從現在開始約{delta}分鐘',
+	hourUntil: '從現在開始1小時',
+	hoursUntil: '從現在開始約{delta}小時',
+	dayUntil: '從現在開始1天',
+	daysUntil: '從現在開始{delta}天',
+	weekUntil: '從現在開始1星期',
+	weeksUntil: '從現在開始{delta}星期',
+	monthUntil: '從現在開始一個月',
+	monthsUntil: '從現在開始{delta}個月',
+	yearUntil: '從現在開始1年',
+	yearsUntil: '從現在開始{delta}年'
+
+});
+
+
+/*
+---
+
+name: Locale.zh-CH.Form.Validator
+
+description: Form Validator messages for Chinese (simplified and traditional).
+
+license: MIT-style license
+
+authors:
+  - YMind Chan
+
+requires:
+  - /Locale
+  - /Form.Validator
+
+provides: [Form.zh-CH.Form.Validator, Form.Validator.CurrencyYuanValidator]
+
+...
+*/
+
+// Simplified Chinese
+Locale.define('zh-CHS', 'FormValidator', {
+
+	required: '此项必填。',
+	minLength: '请至少输入 {minLength} 个字符 (已输入 {length} 个)。',
+	maxLength: '最多只能输入 {maxLength} 个字符 (已输入 {length} 个)。',
+	integer: '请输入一个整数，不能包含小数点。例如："1", "200"。',
+	numeric: '请输入一个数字，例如："1", "1.1", "-1", "-1.1"。',
+	digits: '请输入由数字和标点符号组成的内容。例如电话号码。',
+	alpha: '请输入 A-Z 的 26 个字母，不能包含空格或任何其他字符。',
+	alphanum: '请输入 A-Z 的 26 个字母或 0-9 的 10 个数字，不能包含空格或任何其他字符。',
+	dateSuchAs: '请输入合法的日期格式，如：{date}。',
+	dateInFormatMDY: '请输入合法的日期格式，例如：YYYY-MM-DD ("2010-12-31")。',
+	email: '请输入合法的电子信箱地址，例如："fred@domain.com"。',
+	url: '请输入合法的 Url 地址，例如：http://www.example.com。',
+	currencyDollar: '请输入合法的货币符号，例如：￥100.0',
+	oneRequired: '请至少选择一项。',
+	errorPrefix: '错误：',
+	warningPrefix: '警告：',
+
+	// Form.Validator.Extras
+	noSpace: '不能包含空格。',
+	reqChkByNode: '未选择任何内容。',
+	requiredChk: '此项必填。',
+	reqChkByName: '请选择 {label}.',
+	match: '必须与{matchName}相匹配',
+	startDate: '起始日期',
+	endDate: '结束日期',
+	currendDate: '当前日期',
+	afterDate: '日期必须等于或晚于 {label}.',
+	beforeDate: '日期必须早于或等于 {label}.',
+	startMonth: '请选择起始月份',
+	sameMonth: '您必须修改两个日期中的一个，以确保它们在同一月份。',
+	creditcard: '您输入的信用卡号码不正确。当前已输入{length}个字符。'
+
+});
+
+// Traditional Chinese
+Locale.define('zh-CHT', 'FormValidator', {
+
+	required: '此項必填。 ',
+	minLength: '請至少輸入{minLength} 個字符(已輸入{length} 個)。 ',
+	maxLength: '最多只能輸入{maxLength} 個字符(已輸入{length} 個)。 ',
+	integer: '請輸入一個整數，不能包含小數點。例如："1", "200"。 ',
+	numeric: '請輸入一個數字，例如："1", "1.1", "-1", "-1.1"。 ',
+	digits: '請輸入由數字和標點符號組成的內容。例如電話號碼。 ',
+	alpha: '請輸入AZ 的26 個字母，不能包含空格或任何其他字符。 ',
+	alphanum: '請輸入AZ 的26 個字母或0-9 的10 個數字，不能包含空格或任何其他字符。 ',
+	dateSuchAs: '請輸入合法的日期格式，如：{date}。 ',
+	dateInFormatMDY: '請輸入合法的日期格式，例如：YYYY-MM-DD ("2010-12-31")。 ',
+	email: '請輸入合法的電子信箱地址，例如："fred@domain.com"。 ',
+	url: '請輸入合法的Url 地址，例如：http://www.example.com。 ',
+	currencyDollar: '請輸入合法的貨幣符號，例如：￥100.0',
+	oneRequired: '請至少選擇一項。 ',
+	errorPrefix: '錯誤：',
+	warningPrefix: '警告：',
+
+	// Form.Validator.Extras
+	noSpace: '不能包含空格。 ',
+	reqChkByNode: '未選擇任何內容。 ',
+	requiredChk: '此項必填。 ',
+	reqChkByName: '請選擇 {label}.',
+	match: '必須與{matchName}相匹配',
+	startDate: '起始日期',
+	endDate: '結束日期',
+	currendDate: '當前日期',
+	afterDate: '日期必須等於或晚於{label}.',
+	beforeDate: '日期必須早於或等於{label}.',
+	startMonth: '請選擇起始月份',
+	sameMonth: '您必須修改兩個日期中的一個，以確保它們在同一月份。 ',
+	creditcard: '您輸入的信用卡號碼不正確。當前已輸入{length}個字符。 '
+
+});
+
+Form.Validator.add('validate-currency-yuan', {
+
+	errorMsg: function(){
+		return Form.Validator.getMsg('currencyYuan');
+	},
+
+	test: function(element){
+		// [￥]1[##][,###]+[.##]
+		// [￥]1###+[.##]
+		// [￥]0.##
+		// [￥].##
+		return Form.Validator.getValidator('IsEmpty').test(element) || (/^￥?\-?([1-9]{1}[0-9]{0,2}(\,[0-9]{3})*(\.[0-9]{0,2})?|[1-9]{1}\d*(\.[0-9]{0,2})?|0(\.[0-9]{0,2})?|(\.[0-9]{1,2})?)$/).test(element.get('value'));
+	}
+
+});
 
