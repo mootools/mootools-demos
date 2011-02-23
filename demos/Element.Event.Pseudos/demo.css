@@ -17,3 +17,13 @@
 .active {
 	background-color: #6B7B95;
 }
+
+#multiplePseudoText textarea {
+	background: #f8f8f8;
+	border: 1px solid #d6d6d6;
+	border-left-color: #e4e4e4;
+	border-top-color: #e4e4e4;
+	padding: 0.3em;
+	margin-top: 10px;
+	font: 2em sans-serif;
+}

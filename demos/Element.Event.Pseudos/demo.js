@@ -22,4 +22,18 @@ window.addEvent('domready', function() {
 		this.toggleClass('active');
 	});
 
+	// use multiple pseudos
+	$('multiplePseudoText').addEvent('keydown:relay(textarea):keys(enter):once', function(){
+		this.getElement('textarea').set('text', 'MooTools!!').highlight();
+	});
+
+	// pause pseudo event, you can define the pause, otherwise it will use the default (250)
+	var spinner = $('spinner').setStyle('opacity', 0).set('tween', {
+		link: 'chain'
+	});
+	$('pauseEvent').addEvent('keydown:pause(200)', function(){
+		spinner.get('tween').cancel();
+		spinner.fade(1).pauseFx(400).fade(0);
+	});
+
 });

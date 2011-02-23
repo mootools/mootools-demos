@@ -13,3 +13,23 @@
 	<div class="item"></div>
 	<div class="item"></div>
 </div>
+
+<h2>Multiple Pseudos</h2>
+
+This demo uses the <code>keydown:relay(textarea):keys(enter):once</code> event:
+
+<div id="multiplePseudoText">
+	<textarea>Press the enter key</textarea>
+</div>
+
+<h2><code>:pause</code> Pseudo</h2>
+
+<p>
+	This Pseudo Event prevents that the event will be fired each time after each
+	keystroke, but it rather fires when the user is ready typing. This is for
+	example very useful when you want to validate the field when the user is
+	ready typing, or if you do some Requests in an efficient way.
+</p>
+
+<input id="pauseEvent" type="text">
+<img src="demos/Element.Event.Pseudos/spinner.gif" alt="Spinner" id="spinner">
