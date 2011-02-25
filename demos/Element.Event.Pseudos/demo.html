@@ -25,8 +25,9 @@ This demo uses the <code>keydown:relay(textarea):keys(enter):once</code> event:
 <h2><code>:pause</code> Pseudo</h2>
 
 <p>
-	This Pseudo Event prevents that the event will be fired each time after each
-	keystroke, but it rather fires when the user is ready typing. This is for
+	This Pseudo Event prevents the event function from firing immediately after
+	every keystroke. <code>:pause</code> instead waits for a pause in keystrokes of
+	a optional amount of time (in milliseconds) to pass before firing. This is for
 	example very useful when you want to validate the field when the user is
 	ready typing, or if you do some Requests in an efficient way.
 </p>
