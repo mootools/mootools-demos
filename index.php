@@ -165,7 +165,7 @@ if (isset($_GET['demo'])){
 				<?php else: ?>
 				<h2>MooTools Demos</h2>
 
-				<p>The demos are here to give you some examples of how MooTools works. Demos can be opened in <a href="http://jsfiddle.net">jsFiddle</a> for editing, and you can <a href="https://github.com/fakedarren/mootools-demos">download the entire demo runner here</a>.</p>
+				<p>The demos are here to give you some examples of how MooTools works. Demos can be opened in <a href="http://jsfiddle.net">jsFiddle</a> for editing, and you can <a href="https://github.com/mootools/mootools-demos">download the entire demo runner here</a>.</p>
 
 				<p>We hope you enjoy our demos.</p>
 				<p>The MooTools Development Team.</p>
