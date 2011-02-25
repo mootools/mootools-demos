@@ -1,3 +1,6 @@
+// MooTools: the javascript framework.
+// Load this file's selection again by visiting: http://mootools.net/more/bb945d63e477d2dd2d6e65950e39471b 
+// Or build this file again with packager using: packager build More/More More/Events.Pseudos More/Class.Refactor More/Class.Binds More/Class.Occlude More/Chain.Wait More/Array.Extras More/Date More/Date.Extras More/Number.Format More/Object.Extras More/String.Extras More/String.QueryString More/URI More/URI.Relative More/Hash More/Hash.Extras More/Element.Forms More/Elements.From More/Element.Event.Pseudos More/Element.Event.Pseudos.Keys More/Element.Delegation More/Element.Measure More/Element.Pin More/Element.Position More/Element.Shortcuts More/Form.Request More/Form.Request.Append More/Form.Validator More/Form.Validator.Inline More/Form.Validator.Extras More/OverText More/Fx.Elements More/Fx.Accordion More/Fx.Move More/Fx.Reveal More/Fx.Scroll More/Fx.Slide More/Fx.SmoothScroll More/Fx.Sort More/Drag More/Drag.Move More/Slider More/Sortables More/Request.JSONP More/Request.Queue More/Request.Periodical More/Assets More/Color More/Group More/Hash.Cookie More/IframeShim More/HtmlTable More/HtmlTable.Zebra More/HtmlTable.Sort More/HtmlTable.Select More/Keyboard More/Keyboard.Extras More/Mask More/Scroller More/Tips More/Spinner More/Locale More/Locale.Set.From More/Locale.en-US.Date More/Locale.en-US.Form.Validator More/Locale.en-US.Number
 /*
 ---
 
@@ -27,8 +30,8 @@ provides: [MooTools.More]
 */
 
 MooTools.More = {
-	'version': '1.3.0.2dev',
-	'build': '58e2f94dd1affa02a7ac3e6dc9e630b6d3b6d8bb'
+	'version': '1.3.1.1',
+	'build': '0292a3af1eea242b817fecf9daa127417d10d4ce'
 };
 
 
@@ -95,7 +98,7 @@ Events.Pseudos = function(pseudos, addEvent, removeEvent){
 		return Object.merge.apply(this, split.map(function(item){
 			return pseudos[item.pseudo].options || {};
 		}));
-	}
+	};
 
 	return {
 
@@ -211,7 +214,7 @@ Events.implement(Events.Pseudos(pseudos, proto.addEvent, proto.removeEvent));
 	if (this[klass]) this[klass].implement(Events.prototype);
 });
 
-})();
+}).call(this);
 
 
 /*
@@ -397,7 +400,7 @@ provides: [Chain.Wait]
 		});
 	}
 
-})();
+}).call(this);
 
 
 /*
@@ -423,6 +426,9 @@ provides: [Array.Extras]
 
 ...
 */
+
+(function(nil){
+
 Array.implement({
 
 	min: function(){
@@ -440,7 +446,7 @@ Array.implement({
 	sum: function(){
 		var result = 0, l = this.length;
 		if (l){
-			while(l--) result += this[l];
+			while (l--) result += this[l];
 		}
 		return result;
 	},
@@ -459,22 +465,23 @@ Array.implement({
 	},
 
 	reduce: function(fn, value){
-		var undefined;
 		for (var i = 0, l = this.length; i < l; i++){
-			if (i in this) value = value === undefined ? this[i] : fn.call(null, value, this[i], i, this);
+			if (i in this) value = value === nil ? this[i] : fn.call(null, value, this[i], i, this);
 		}
 		return value;
 	},
 
 	reduceRight: function(fn, value){
-		var i = this.length, undefined;
+		var i = this.length;
 		while (i--){
-			if (i in this) value = value === undefined ? this[i] : fn.call(null, value, this[i], i, this);
+			if (i in this) value = value === nil ? this[i] : fn.call(null, value, this[i], i, this);
 		}
 		return value;
 	}
 
 });
+
+}).call(this);
 
 
 /*
@@ -506,12 +513,14 @@ var defined = function(value){
 	return value != null;
 };
 
+var hasOwnProperty = Object.prototype.hasOwnProperty;
+
 Object.extend({
 
 	getFromPath: function(source, parts){
 		if (typeof parts == 'string') parts = parts.split('.');
 		for (var i = 0, l = parts.length; i < l; i++){
-			if (source.hasOwnProperty(parts[i])) source = source[parts[i]];
+			if (hasOwnProperty.call(source, parts[i])) source = source[parts[i]];
 			else return null;
 		}
 		return source;
@@ -519,20 +528,20 @@ Object.extend({
 
 	cleanValues: function(object, method){
 		method = method || defined;
-		for (key in object) if (!method(object[key])){
+		for (var key in object) if (!method(object[key])){
 			delete object[key];
 		}
 		return object;
 	},
 
 	erase: function(object, key){
-		if (object.hasOwnProperty(key)) delete object[key];
+		if (hasOwnProperty.call(object, key)) delete object[key];
 		return object;
 	},
 
 	run: function(object){
 		var args = Array.slice(arguments, 1);
-		for (key in object) if (object[key].apply){
+		for (var key in object) if (object[key].apply){
 			object[key].apply(object, args);
 		}
 		return object;
@@ -540,7 +549,7 @@ Object.extend({
 
 });
 
-})();
+}).call(this);
 
 
 /*
@@ -708,7 +717,7 @@ Locale.Set = new Class({
 
 
 
-})();
+}).call(this);
 
 
 /*
@@ -1107,6 +1116,9 @@ var parseWord = function(type, word, num){
 	return (num) ? translated.indexOf(ret) : ret;
 };
 
+var startCentury = 1900,
+	startYear = 70;
+
 Date.extend({
 
 	getMsg: function(key, args){
@@ -1214,9 +1226,6 @@ Date.extend({
 
 });
 
-var startCentury = 1900,
-	startYear = 70;
-
 var regexOf = function(type){
 	return new RegExp('(?:' + Date.getMsg(type).map(function(name){
 		return name.substr(0, 3);
@@ -1224,7 +1233,7 @@ var regexOf = function(type){
 };
 
 var replacers = function(key){
-	switch(key){
+	switch (key){
 		case 'T':
 			return '%H:%M:%S';
 		case 'x': // iso8601 covers yyyy-mm-dd, so just check if month is first
@@ -1294,7 +1303,7 @@ var build = function(format){
 
 			if (year != null) handle.call(date, 'y', year); // need to start in the right year
 			if ('d' in bits) handle.call(date, 'd', 1);
-			if ('m' in bits || bits['b'] || bits['B']) handle.call(date, 'm', 1);
+			if ('m' in bits || bits.b || bits.B) handle.call(date, 'm', 1);
 
 			for (var key in bits) handle.call(date, key, bits[key]);
 			return date;
@@ -1305,7 +1314,7 @@ var build = function(format){
 var handle = function(key, value){
 	if (!value) return this;
 
-	switch(key){
+	switch (key){
 		case 'a': case 'A': return this.set('day', Date.parseDay(value, true));
 		case 'b': case 'B': return this.set('mo', Date.parseMonth(value, true));
 		case 'd': return this.set('date', value);
@@ -1347,7 +1356,7 @@ Locale.addEvent('change', function(language){
 	if (Locale.get('Date')) recompile(language);
 }).fireEvent('change', Locale.getCurrent());
 
-})();
+}).call(this);
 
 
 /*
@@ -1444,10 +1453,10 @@ Date.implement({
 		re: /^(?:tod|tom|yes)/i,
 		handler: function(bits){
 			var d = new Date().clearTime();
-			switch(bits[0]){
+			switch (bits[0]){
 				case 'tom': return d.increment();
 				case 'yes': return d.decrement();
-				default: 	return d;
+				default: return d;
 			}
 		}
 	},
@@ -1578,10 +1587,9 @@ Number.implement({
 		if (precision >= 1 && precision <= 21) value = (+value).toPrecision(precision);
 
 		value += '';
-
+		var index;
 		if (getOption('scientific') === false && value.indexOf('e') > -1){
 			var match = value.split('e'),
-				index,
 				zeros = +match[1];
 			value = match[0].replace('.', '');
 
@@ -1723,15 +1731,15 @@ tidy = {
 };
 
 var walk = function(string, replacements){
-	var result = string;
+	var result = string, key;
 	for (key in replacements) result = result.replace(replacements[key], key);
 	return result;
 };
 
 var getRegexForTag = function(tag, contents){
 	tag = tag || '';
-	var regstr = contents ? "<" + tag + "(?!\\w)[^>]*>([\\s\\S]*?)<\/" + tag + "(?!\\w)>" : "<\/?" + tag + "([^>]+)?>";
-	reg = new RegExp(regstr, "gi");
+	var regstr = contents ? "<" + tag + "(?!\\w)[^>]*>([\\s\\S]*?)<\/" + tag + "(?!\\w)>" : "<\/?" + tag + "([^>]+)?>",
+		reg = new RegExp(regstr, "gi");
 	return reg;
 };
 
@@ -1786,7 +1794,7 @@ String.implement({
 
 });
 
-})();
+}).call(this);
 
 
 /*
@@ -1969,7 +1977,7 @@ var URI = this.URI = new Class({
 	},
 
 	get: function(part, base){
-		switch(part){
+		switch (part){
 			case 'value': return this.combine(this.parsed, base ? base.parsed : false);
 			case 'data' : return this.getData();
 		}
@@ -2027,7 +2035,7 @@ String.implement({
 
 });
 
-})();
+}).call(this);
 
 
 /*
@@ -2232,7 +2240,7 @@ Hash.implement({
 Hash.alias({indexOf: 'keyOf', contains: 'hasValue'});
 
 
-})();
+}).call(this);
 
 
 
@@ -2495,7 +2503,7 @@ Event.definePseudo = function(key, listener){
 var proto = Element.prototype;
 [Element, Window, Document].invoke('implement', Events.Pseudos(pseudos, proto.addEvent, proto.removeEvent));
 
-})();
+}).call(this);
 
 
 /*
@@ -2579,7 +2587,7 @@ Object.append(Event.Keys, {
 	'+': 107
 });
 
-})();
+}).call(this);
 
 
 /*
@@ -2659,7 +2667,7 @@ var formObserver = function(eventName){
 				formListeners.push(formListener);
 
 				form.store($delegationKey + eventName + 'originalFn', formEvents)
-					.store($delegationKey + eventName + 'listeners', formListeners)
+					.store($delegationKey + eventName + 'listeners', formListeners);
 			}
 		}
 	};
@@ -2677,7 +2685,7 @@ var inputObserver = function(eventName){
 			};
 			args[0].target.addEvents(events);
 		}
-	}
+	};
 };
 
 var eventOptions = {
@@ -2720,7 +2728,7 @@ Event.definePseudo('relay', {
 	options: eventOptions
 });
 
-})();
+}).call(this);
 
 
 
@@ -2890,7 +2898,7 @@ Element.implement({
 
 });
 
-})();
+}).call(this);
 
 
 /*
@@ -2931,7 +2939,7 @@ provides: [Element.Pin]
 		supportsPositionFixed = (test.offsetTop === 0);
 		test.dispose();
 		supportTested = true;
-	}
+	};
 
 	Element.implement({
 
@@ -2940,7 +2948,9 @@ provides: [Element.Pin]
 			if (this.getStyle('display') == 'none') return this;
 
 			var pinnedPosition,
-				scroll = window.getScroll();
+				scroll = window.getScroll(),
+				parent,
+				scrollFixer;
 
 			if (enable !== false){
 				pinnedPosition = this.getPosition(supportsPositionFixed ? document.body : this.getOffsetParent());
@@ -2954,8 +2964,8 @@ provides: [Element.Pin]
 						this.setStyle('position', 'fixed').setStyles(currentPosition);
 					} else {
 
-						var parent = this.getOffsetParent(),
-							position = this.getPosition(parent),
+						parent = this.getOffsetParent();
+						var position = this.getPosition(parent),
 							styles = this.getStyles('left', 'top');
 
 						if (parent && styles.left == 'auto' || styles.top == 'auto') this.setPosition(position);
@@ -2966,7 +2976,7 @@ provides: [Element.Pin]
 							y: styles.top.toInt() - scroll.y
 						};
 
-						var scrollFixer = function(){
+						scrollFixer = function(){
 							if (!this.retrieve('pin:_pinned')) return;
 							var scroll = window.getScroll();
 							this.setStyles({
@@ -2984,13 +2994,13 @@ provides: [Element.Pin]
 			} else {
 				if (!this.retrieve('pin:_pinned')) return this;
 
-				var parent = this.getParent(),
-					offsetParent = (parent.getComputedStyle('position') != 'static' ? parent : parent.getOffsetParent());
+				parent = this.getParent();
+				var offsetParent = (parent.getComputedStyle('position') != 'static' ? parent : parent.getOffsetParent());
 
 				pinnedPosition = this.getPosition(offsetParent);
 
 				this.store('pin:_pinned', false);
-				var scrollFixer = this.retrieve('pin:_scrollFixer');
+				scrollFixer = this.retrieve('pin:_scrollFixer');
 				if (!scrollFixer){
 					this.setStyles({
 						position: 'absolute',
@@ -3018,7 +3028,7 @@ provides: [Element.Pin]
 
 
 
-})();
+}).call(this);
 
 
 /*
@@ -3144,7 +3154,7 @@ Element.implement({
 			prefX = options.offset.x,
 			winSize = window.getSize();
 
-		switch(options.position.x){
+		switch (options.position.x){
 			case 'left':
 				pos.x = left + prefX;
 				break;
@@ -3156,7 +3166,7 @@ Element.implement({
 				break;
 		}
 
-		switch(options.position.y){
+		switch (options.position.y){
 			case 'top':
 				pos.y = top + prefY;
 				break;
@@ -3171,7 +3181,7 @@ Element.implement({
 		if (options.edge){
 			var edgeOffset = {};
 
-			switch(options.edge.x){
+			switch (options.edge.x){
 				case 'left':
 					edgeOffset.x = 0;
 					break;
@@ -3183,7 +3193,7 @@ Element.implement({
 					break;
 			}
 
-			switch(options.edge.y){
+			switch (options.edge.y){
 				case 'top':
 					edgeOffset.y = 0;
 					break;
@@ -3246,7 +3256,7 @@ Element.implement({
 
 });
 
-})();
+}).call(this);
 
 
 /*
@@ -4105,7 +4115,7 @@ if (!window.Form) window.Form = {};
 
 	});
 
-})();
+}).call(this);
 
 
 /*
@@ -4353,7 +4363,7 @@ Element.implement({
 
 });
 
-})();
+}).call(this);
 
 
 /*
@@ -4525,13 +4535,13 @@ provides: [Form.Validator, InputValidator, FormValidator.BaseValidators]
 */
 if (!window.Form) window.Form = {};
 
-var InputValidator = new Class({
+var InputValidator = this.InputValidator = new Class({
 
 	Implements: [Options],
 
 	options: {
 		errorMsg: 'Validation failed.',
-		test: function(field){return true;}
+		test: Function.from(true)
 	},
 
 	initialize: function(className, options){
@@ -4540,19 +4550,20 @@ var InputValidator = new Class({
 	},
 
 	test: function(field, props){
-		if (document.id(field)) return this.options.test(document.id(field), props || this.getProps(field));
-		else return false;
+		field = document.id(field);
+		return (field) ? this.options.test(field, props || this.getProps(field)) : false;
 	},
 
 	getError: function(field, props){
+		field = document.id(field);
 		var err = this.options.errorMsg;
-		if (typeOf(err) == 'function') err = err(document.id(field), props || this.getProps(field));
+		if (typeOf(err) == 'function') err = err(field, props || this.getProps(field));
 		return err;
 	},
 
 	getProps: function(field){
-		if (!document.id(field)) return {};
-		return field.get('validatorProps');
+		field = document.id(field);
+		return (field) ? field.get('validatorProps') : {};
 	}
 
 });
@@ -4606,7 +4617,7 @@ Element.Properties.validatorProps = {
 
 Form.Validator = new Class({
 
-	Implements:[Options, Events],
+	Implements: [Options, Events],
 
 	Binds: ['onSubmit'],
 
@@ -4665,8 +4676,7 @@ Form.Validator = new Class({
 	},
 
 	onSubmit: function(event){
-		if (!this.validate(event) && event) event.preventDefault();
-		else this.reset();
+		if (this.validate(event)) this.reset();
 	},
 
 	reset: function(){
@@ -4677,7 +4687,9 @@ Form.Validator = new Class({
 	validate: function(event){
 		var result = this.getFields().map(function(field){
 			return this.validateField(field, true);
-		}, this).every(function(v){ return v;});
+		}, this).every(function(v){
+			return v;
+		});
 		this.fireEvent('formValidate', [result, this.element, event]);
 		if (this.options.stopOnFailure && !result && event) event.preventDefault();
 		return result;
@@ -4702,10 +4714,10 @@ Form.Validator = new Class({
 				if (className && !this.test(className, field)) validatorsFailed.include(className);
 			}, this);
 			passed = validatorsFailed.length === 0;
-			if (validators && !this.hasValidator(field,'warnOnly')){
+			if (validators && !this.hasValidator(field, 'warnOnly')){
 				if (passed){
 					field.addClass('validation-passed').removeClass('validation-failed');
-					this.fireEvent('elementPass', field);
+					this.fireEvent('elementPass', [field]);
 				} else {
 					field.addClass('validation-failed').removeClass('validation-passed');
 					this.fireEvent('elementFail', [field, validatorsFailed]);
@@ -4732,7 +4744,7 @@ Form.Validator = new Class({
 		field = document.id(field);
 		if ((this.options.ignoreHidden && !field.isVisible()) || (this.options.ignoreDisabled && field.get('disabled'))) return true;
 		var validator = this.getValidator(className);
-		warn = warn != null ? warn : false;
+		if (warn != null) warn = false;
 		if (this.hasValidator(field, 'warnOnly')) warn = true;
 		var isValid = this.hasValidator(field, 'ignoreValidation') || (validator ? validator.test(field) : true);
 		if (validator && field.isVisible()) this.fireEvent('elementValidate', [isValid, field, className, warn]);
@@ -4982,17 +4994,16 @@ Form.Validator.addAllThese([
 Element.Properties.validator = {
 
 	set: function(options){
-		var validator = this.retrieve('validator');
-		if (validator) validator.setOptions(options);
-		return this.store('$moo:validator:options', options);
+		this.get('validator').setOptions(options);
 	},
 
-	get: function(options){
-		if (options || !this.retrieve('validator')){
-			if (options || !this.retrieve('$moo:validator:options')) this.set('validator', options);
-			this.store('validator', new Form.Validator(this, this.retrieve('$moo:validator:options')));
+	get: function(){
+		var validator = this.retrieve('validator');
+		if (!validator){
+			validator = new Form.Validator(this);
+			this.store('validator', validator);
 		}
-		return this.retrieve('validator');
+		return validator;
 	}
 
 };
@@ -5001,10 +5012,12 @@ Element.implement({
 
 	validate: function(options){
 		if (options) this.set('validator', options);
-		return this.get('validator', options).validate();
+		return this.get('validator').validate();
 	}
 
 });
+
+
 
 
 
@@ -5095,10 +5108,15 @@ Form.Validator.Inline = new Class({
 
 	showAdvice: function(className, field){
 		var advice = this.getAdvice(className, field);
-		if (advice && !field.retrieve('$moo:' + this.getPropName(className))
-				&& (advice.getStyle('display') == 'none'
-				|| advice.getStyle('visiblity') == 'hidden'
-				|| advice.getStyle('opacity') == 0)){
+		if (
+			advice &&
+			!field.retrieve('$moo:' + this.getPropName(className)) &&
+			(
+				advice.getStyle('display') == 'none' ||
+				advice.getStyle('visiblity') == 'hidden' ||
+				advice.getStyle('opacity') == 0
+			)
+		){
 			field.store('$moo:' + this.getPropName(className), true);
 			this.options.showError(advice);
 			this.fireEvent('showAdvice', [field, advice, className]);
@@ -5487,7 +5505,7 @@ var OverText = new Class({
 	property: 'OverText',
 
 	initialize: function(element, options){
-		var element = this.element = document.id(element);
+		element = this.element = document.id(element);
 
 		if (this.occlude()) return this.occluded;
 		this.setOptions(options);
@@ -5832,7 +5850,7 @@ Fx.Accordion = new Class({
 
 		if (options.show || this.options.show === 0){
 			options.display = false;
-			previous = this.options.show;
+			this.previous = options.show;
 		}
 
 		if (options.start){
@@ -5957,7 +5975,7 @@ Fx.Accordion = new Class({
 			}
 			this.fireEvent(hide ? 'background' : 'active', [this.togglers[i], el]);
 			for (var fx in effects) obj[i][fx] = hide ? 0 : el[effects[fx]];
-			if (!useFx && !hide && options.resetHeight) obj[i]['height'] = 'auto';
+			if (!useFx && !hide && options.resetHeight) obj[i].height = 'auto';
 		}, this);
 
 		this.internalChain.clearChain();
@@ -5965,7 +5983,7 @@ Fx.Accordion = new Class({
 			if (options.resetHeight && !this.selfHidden){
 				var el = elements[index];
 				if (el) el.setStyle('height', 'auto');
-			};
+			}
 		}.bind(this));
 
 		return useFx ? this.start(obj) : this.set(obj);
@@ -6216,9 +6234,9 @@ Fx.Scroll = new Class({
 
 function isBody(element){
 	return (/^(?:body|html)$/i).test(element.tagName);
-};
+}
 
-})();
+}).call(this);
 
 
 /*
@@ -6555,8 +6573,9 @@ Fx.Sort = new Class({
 			if (newOrder.length > this.elements.length)
 				newOrder.splice(this.elements.length-1, newOrder.length - this.elements.length);
 		}
-		var margin = top = left = 0;
-		newOrder.each(function(item, index){
+		var margin = 0;
+		top = left = 0;
+		newOrder.each(function(item){
 			var newPos = {};
 			if (vert){
 				newPos.top = top - current[item].top - margin;
@@ -7033,7 +7052,7 @@ Drag.Move = new Class({
 
 	getDroppableCoordinates: function(element){
 		var position = element.getCoordinates();
-		if (element.getStyle('position') == 'fixed') {
+		if (element.getStyle('position') == 'fixed'){
 			var scroll = window.getScroll();
 			position.left += scroll.x;
 			position.right += scroll.x;
@@ -7182,7 +7201,7 @@ var Slider = new Class({
 
 		this.drag = new Drag(knob, dragOptions);
 		this.attach();
-		if (options.initialStep != null) this.set(options.initialStep)
+		if (options.initialStep != null) this.set(options.initialStep);
 	},
 
 	attach: function(){
@@ -7668,7 +7687,7 @@ Request.JSONP = new Class({
 	},
 
 	timeout: function(){
-		if (this.running) {
+		if (this.running){
 			this.running = false;
 			this.fireEvent('timeout', [this.script.get('src'), this.script]).fireEvent('failure').cancel();
 		}
@@ -7727,8 +7746,9 @@ Request.Queue = new Class({
 	},
 
 	initialize: function(options){
+		var requests;
 		if (options){
-			var requests = options.requests;
+			requests = options.requests;
 			delete options.requests;
 		}
 		this.setOptions(options);
@@ -8240,7 +8260,7 @@ String.implement({
 
 });
 
-})();
+}).call(this);
 
 
 
@@ -8302,7 +8322,7 @@ this.Group = new Class({
 
 });
 
-})();
+}).call(this);
 
 
 
@@ -8413,7 +8433,7 @@ var HtmlTable = new Class({
 	initialize: function(){
 		var params = Array.link(arguments, {options: Type.isObject, table: Type.isElement, id: Type.isString});
 		this.setOptions(params.options);
-		if(!params.table && params.id) params.table = document.id(params.id);
+		if (!params.table && params.id) params.table = document.id(params.id);
 		this.element = params.table || new Element('table', this.options.properties);
 		if (this.occlude()) return this.occluded;
 		this.build();
@@ -8737,10 +8757,10 @@ HtmlTable = Class.refactor(HtmlTable, {
 			}
 			body.appendChild(row);
 
-			for (rowIndex = 0; rowIndex < count; rowIndex++) {
+			for (rowIndex = 0; rowIndex < count; rowIndex++){
 				if (data[rowIndex].position > position) data[rowIndex].position--;
 			}
-		};
+		}
 	},
 
 	setRowStyle: function(row, i){
@@ -8771,8 +8791,9 @@ HtmlTable = Class.refactor(HtmlTable, {
 		var parser = this.getParser();
 		if (!parser) return;
 
+		var rel;
 		if (!Browser.ie){
-			var rel = this.body.getParent();
+			rel = this.body.getParent();
 			this.body.dispose();
 		}
 
@@ -8901,7 +8922,7 @@ HtmlTable.Parsers = {
 
 HtmlTable.defineParsers = function(parsers){
 	HtmlTable.Parsers = Object.append(HtmlTable.Parsers, parsers);
-	for (parser in parsers){
+	for (var parser in parsers){
 		HtmlTable.ParserPriority.unshift(parser);
 	}
 };
@@ -9148,7 +9169,7 @@ provides: [Keyboard]
 		'keydown': handler
 	});
 
-})();
+}).call(this);
 
 
 /*
@@ -9404,7 +9425,7 @@ HtmlTable = Class.refactor(HtmlTable, {
 			endRow = tmp;
 		}
 
-		for(var i = startRow; i <= endRow; i++) this[method](rows[i], true);
+		for (var i = startRow; i <= endRow; i++) this[method](rows[i], true);
 
 		return this;
 	},
@@ -9441,7 +9462,8 @@ HtmlTable = Class.refactor(HtmlTable, {
 				};
 				row.store('binders', binders);
 			}
-			(this._selectEnabled) ? row.addEvents(binders) : row.removeEvents(binders);
+			if (this._selectEnabled) row.addEvents(binders);
+			else row.removeEvents(binders);
 		}, this);
 	},
 
@@ -9835,16 +9857,16 @@ this.Tips = new Class({
 		this.fireForParent(event, element);
 	},
 
-	setTitle: function(title) {
-		if (this._titleElement) {
+	setTitle: function(title){
+		if (this._titleElement){
 			this._titleElement.empty();
 			this.fill(this._titleElement, title);
 		}
 		return this;
 	},
 
-	setText: function(text) {
-		if (this._textElement) {
+	setText: function(text){
+		if (this._textElement){
 			this._textElement.empty();
 			this.fill(this._textElement, text);
 		}
@@ -9902,7 +9924,7 @@ this.Tips = new Class({
 
 });
 
-})();
+}).call(this);
 
 
 /*
@@ -9944,7 +9966,7 @@ Locale.Set.from = function(set, type){
 	if (!type && typeOf(set) == 'string') type = 'json';
 	if (parsers[type]) set = parsers[type](set);
 
-	locale = new Locale.Set;
+	var locale = new Locale.Set;
 
 	locale.sets = set.sets || {};
 
@@ -9954,3397 +9976,7 @@ Locale.Set.from = function(set, type){
 	}
 
 	return locale;
-}
-
-})();
-
-
-/*
----
-
-name: Locale.ar.Date
-
-description: Date messages for Arabic.
-
-license: MIT-style license
-
-authors:
-  - Chafik Barbar
-
-requires:
-  - /Locale
-
-provides: [Locale.ar.Date]
-
-...
-*/
-
-Locale.define('ar', 'Date', {
-
-	// Culture's date order: DD/MM/YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d/%m/%Y',
-	shortTime: '%H:%M'
-
-});
-
-
-/*
----
-
-name: Locale.ar.Form.Validator
-
-description: Form Validator messages for Arabic.
-
-license: MIT-style license
-
-authors:
-  - Chafik Barbar
-
-requires:
-  - /Locale
-
-provides: [Locale.ar.Form.Validator]
-
-...
-*/
-
-Locale.define('ar', 'FormValidator', {
-
-	required: 'هذا الحقل مطلوب.',
-	minLength: 'رجاءً إدخال {minLength} أحرف على الأقل (تم إدخال {length} أحرف).',
-	maxLength: 'الرجاء عدم إدخال أكثر من {maxLength} أحرف (تم إدخال {length} أحرف).',
-	integer: 'الرجاء إدخال عدد صحيح في هذا الحقل. أي رقم ذو كسر عشري أو مئوي (مثال 1.25 ) غير مسموح.',
-	numeric: 'الرجاء إدخال قيم رقمية في هذا الحقل (مثال "1" أو "1.1" أو "-1" أو "-1.1").',
-	digits: 'الرجاء أستخدام قيم رقمية وعلامات ترقيمية فقط في هذا الحقل (مثال, رقم هاتف مع نقطة أو شحطة)',
-	alpha: 'الرجاء أستخدام أحرف فقط (ا-ي) في هذا الحقل. أي فراغات أو علامات غير مسموحة.',
-	alphanum: 'الرجاء أستخدام أحرف فقط (ا-ي) أو أرقام (0-9) فقط في هذا الحقل. أي فراغات أو علامات غير مسموحة.',
-	dateSuchAs: 'الرجاء إدخال تاريخ صحيح كالتالي {date}',
-	dateInFormatMDY: 'الرجاء إدخال تاريخ صحيح (مثال, 31-12-1999)',
-	email: 'الرجاء إدخال بريد إلكتروني صحيح.',
-	url: 'الرجاء إدخال عنوان إلكتروني صحيح مثل http://www.example.com',
-	currencyDollar: 'الرجاء إدخال قيمة $ صحيحة. مثال, 100.00$',
-	oneRequired: 'الرجاء إدخال قيمة في أحد هذه الحقول على الأقل.',
-	errorPrefix: 'خطأ: ',
-	warningPrefix: 'تحذير: '
-
-});
-
-
-/*
----
-
-name: Locale.ca-CA.Date
-
-description: Date messages for Catalan.
-
-license: MIT-style license
-
-authors:
-  - Ãlfons Sanchez
-
-requires:
-  - /Locale
-
-provides: [Locale.ca-CA.Date]
-
-...
-*/
-
-Locale.define('ca-CA', 'Date', {
-
-	months: ['Gener', 'Febrer', 'Març', 'Abril', 'Maig', 'Juny', 'Juli', 'Agost', 'Setembre', 'Octubre', 'Novembre', 'Desembre'],
-	months_abbr: ['gen.', 'febr.', 'març', 'abr.', 'maig', 'juny', 'jul.', 'ag.', 'set.', 'oct.', 'nov.', 'des.'],
-	days: ['Diumenge', 'Dilluns', 'Dimarts', 'Dimecres', 'Dijous', 'Divendres', 'Dissabte'],
-	days_abbr: ['dg', 'dl', 'dt', 'dc', 'dj', 'dv', 'ds'],
-
-	// Culture's date order: DD/MM/YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d/%m/%Y',
-	shortTime: '%H:%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 0,
-
-	// Date.Extras
-	ordinal: '',
-
-	lessThanMinuteAgo: 'fa menys d`un minut',
-	minuteAgo: 'fa un minut',
-	minutesAgo: 'fa {delta} minuts',
-	hourAgo: 'fa un hora',
-	hoursAgo: 'fa unes {delta} hores',
-	dayAgo: 'fa un dia',
-	daysAgo: 'fa {delta} dies',
-
-	lessThanMinuteUntil: 'menys d`un minut des d`ara',
-	minuteUntil: 'un minut des d`ara',
-	minutesUntil: '{delta} minuts des d`ara',
-	hourUntil: 'un hora des d`ara',
-	hoursUntil: 'unes {delta} hores des d`ara',
-	dayUntil: '1 dia des d`ara',
-	daysUntil: '{delta} dies des d`ara'
-
-});
-
-
-/*
----
-
-name: Locale.ca-CA.Form.Validator
-
-description: Form Validator messages for Catalan.
-
-license: MIT-style license
-
-authors:
-  - Miquel Hudin
-  - Ãlfons Sanchez
-
-requires:
-  - /Locale
-
-provides: [Locale.ca-CA.Form.Validator]
-
-...
-*/
-
-Locale.define('ca-CA', 'FormValidator', {
-
-	required: 'Aquest camp es obligatori.',
-	minLength: 'Per favor introdueix al menys {minLength} caracters (has introduit {length} caracters).',
-	maxLength: 'Per favor introdueix no mes de {maxLength} caracters (has introduit {length} caracters).',
-	integer: 'Per favor introdueix un nombre enter en aquest camp. Nombres amb decimals (p.e. 1,25) no estan permesos.',
-	numeric: 'Per favor introdueix sols valors numerics en aquest camp (p.e. "1" o "1,1" o "-1" o "-1,1").',
-	digits: 'Per favor usa sols numeros i puntuacio en aquest camp (per exemple, un nombre de telefon amb guions i punts no esta permes).',
-	alpha: 'Per favor utilitza lletres nomes (a-z) en aquest camp. No s´admiteixen espais ni altres caracters.',
-	alphanum: 'Per favor, utilitza nomes lletres (a-z) o numeros (0-9) en aquest camp. No s´admiteixen espais ni altres caracters.',
-	dateSuchAs: 'Per favor introdueix una data valida com {date}',
-	dateInFormatMDY: 'Per favor introdueix una data valida com DD/MM/YYYY (p.e. "31/12/1999")',
-	email: 'Per favor, introdueix una adreça de correu electronic valida. Per exemple, "fred@domain.com".',
-	url: 'Per favor introdueix una URL valida com http://www.example.com.',
-	currencyDollar: 'Per favor introdueix una quantitat valida de €. Per exemple €100,00 .',
-	oneRequired: 'Per favor introdueix alguna cosa per al menys una d´aquestes entrades.',
-	errorPrefix: 'Error: ',
-	warningPrefix: 'Avis: ',
-
-	// Form.Validator.Extras
-	noSpace: 'No poden haver espais en aquesta entrada.',
-	reqChkByNode: 'No hi han elements seleccionats.',
-	requiredChk: 'Aquest camp es obligatori.',
-	reqChkByName: 'Per favor selecciona una {label}.',
-	match: 'Aquest camp necessita coincidir amb el camp {matchName}',
-	startDate: 'la data de inici',
-	endDate: 'la data de fi',
-	currendDate: 'la data actual',
-	afterDate: 'La data deu ser igual o posterior a {label}.',
-	beforeDate: 'La data deu ser igual o anterior a {label}.',
-	startMonth: 'Per favor selecciona un mes d´orige',
-	sameMonth: 'Aquestes dos dates deuen estar dins del mateix mes - deus canviar una o altra.'
-
-});
-
-
-/*
----
-
-name: Locale.cs-CZ.Date
-
-description: Date messages for Czech.
-
-license: MIT-style license
-
-authors:
-  - Jan Černý chemiX
-  - Christopher Zukowski
-
-requires:
-  - /Locale
-
-provides: [Locale.cs-CZ.Date]
-
-...
-*/
-(function(){
-
-// Czech language pluralization rules, see http://unicode.org/repos/cldr-tmp/trunk/diff/supplemental/language_plural_rules.html
-// one -> n is 1;            1
-// few -> n in 2..4;         2-4
-// other -> everything else  0, 5-999, 1.31, 2.31, 5.31...
-var pluralize = function (n, one, few, other) {
-	if (n == 1) return one;
-	else if (n == 2 || n == 3 || n == 4) return few;
-	else return other;
 };
 
-Locale.define('cs-CZ', 'Date', {
-
-	months: ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'],
-	months_abbr: ['ledna', 'února', 'března', 'dubna', 'května', 'června', 'července', 'srpna', 'září', 'října', 'listopadu', 'prosince'],
-	days: ['Neděle', 'Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek', 'Sobota'],
-	days_abbr: ['ne', 'po', 'út', 'st', 'čt', 'pá', 'so'],
-
-	// Culture's date order: DD.MM.YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d.%m.%Y',
-	shortTime: '%H:%M',
-	AM: 'dop.',
-	PM: 'odp.',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '.',
-
-	lessThanMinuteAgo: 'před chvílí',
-	minuteAgo: 'přibližně před minutou',
-	minutesAgo: function(delta) { return 'před {delta} ' + pluralize(delta, 'minutou', 'minutami', 'minutami'); },
-	hourAgo: 'přibližně před hodinou',
-	hoursAgo: function(delta) { return 'před {delta} ' + pluralize(delta, 'hodinou', 'hodinami', 'hodinami'); },
-	dayAgo: 'před dnem',
-	daysAgo: function(delta) { return 'před {delta} ' + pluralize(delta, 'dnem', 'dny', 'dny'); },
-	weekAgo: 'před týdnem',
-	weeksAgo: function(delta) { return 'před {delta} ' + pluralize(delta, 'týdnem', 'týdny', 'týdny'); },
-	monthAgo: 'před měsícem',
-	monthsAgo: function(delta) { return 'před {delta} ' + pluralize(delta, 'měsícem', 'měsíci', 'měsíci'); },
-	yearAgo: 'před rokem',
-	yearsAgo: function(delta) { return 'před {delta} ' + pluralize(delta, 'rokem', 'lety', 'lety'); },
-
-	lessThanMinuteUntil: 'za chvíli',
-	minuteUntil: 'přibližně za minutu',
-	minutesUntil: function(delta) { return 'za {delta} ' + pluralize(delta, 'minutu', 'minuty', 'minut'); },
-	hourUntil: 'přibližně za hodinu',
-	hoursUntil: function(delta) { return 'za {delta} ' + pluralize(delta, 'hodinu', 'hodiny', 'hodin'); },
-	dayUntil: 'za den',
-	daysUntil: function(delta) { return 'za {delta} ' + pluralize(delta, 'den', 'dny', 'dnů'); },
-	weekUntil: 'za týden',
-	weeksUntil: function(delta) { return 'za {delta} ' + pluralize(delta, 'týden', 'týdny', 'týdnů'); },
-	monthUntil: 'za měsíc',
-	monthsUntil: function(delta) { return 'za {delta} ' + pluralize(delta, 'měsíc', 'měsíce', 'měsíců'); },
-	yearUntil: 'za rok',
-	yearsUntil: function(delta) { return 'za {delta} ' + pluralize(delta, 'rok', 'roky', 'let'); }
-});
-
-})();
-
-
-/*
----
-
-name: Locale.cs-CZ.Form.Validator
-
-description: Form Validator messages for Czech.
-
-license: MIT-style license
-
-authors:
-  - Jan Černý chemiX
-
-requires:
-  - /Locale
-
-provides: [Locale.cs-CZ.Form.Validator]
-
-...
-*/
-
-Locale.define('cs-CZ', 'FormValidator', {
-
-	required: 'Tato položka je povinná.',
-	minLength: 'Zadejte prosím alespoň {minLength} znaků (napsáno {length} znaků).',
-	maxLength: 'Zadejte prosím méně než {maxLength} znaků (nápsáno {length} znaků).',
-	integer: 'Zadejte prosím celé číslo. Desetinná čísla (např. 1.25) nejsou povolena.',
-	numeric: 'Zadejte jen číselné hodnoty (tj. "1" nebo "1.1" nebo "-1" nebo "-1.1").',
-	digits: 'Zadejte prosím pouze čísla a interpunkční znaménka(například telefonní číslo s pomlčkami nebo tečkami je povoleno).',
-	alpha: 'Zadejte prosím pouze písmena (a-z). Mezery nebo jiné znaky nejsou povoleny.',
-	alphanum: 'Zadejte prosím pouze písmena (a-z) nebo číslice (0-9). Mezery nebo jiné znaky nejsou povoleny.',
-	dateSuchAs: 'Zadejte prosím platné datum jako {date}',
-	dateInFormatMDY: 'Zadejte prosím platné datum jako MM / DD / RRRR (tj. "12/31/1999")',
-	email: 'Zadejte prosím platnou e-mailovou adresu. Například "fred@domain.com".',
-	url: 'Zadejte prosím platnou URL adresu jako http://www.example.com.',
-	currencyDollar: 'Zadejte prosím platnou částku. Například $100.00.',
-	oneRequired: 'Zadejte prosím alespoň jednu hodnotu pro tyto položky.',
-	errorPrefix: 'Chyba: ',
-	warningPrefix: 'Upozornění: ',
-
-	// Form.Validator.Extras
-	noSpace: 'V této položce nejsou povoleny mezery',
-	reqChkByNode: 'Nejsou vybrány žádné položky.',
-	requiredChk: 'Tato položka je vyžadována.',
-	reqChkByName: 'Prosím vyberte {label}.',
-	match: 'Tato položka se musí shodovat s položkou {matchName}',
-	startDate: 'datum zahájení',
-	endDate: 'datum ukončení',
-	currendDate: 'aktuální datum',
-	afterDate: 'Datum by mělo být stejné nebo větší než {label}.',
-	beforeDate: 'Datum by mělo být stejné nebo menší než {label}.',
-	startMonth: 'Vyberte počáteční měsíc.',
-	sameMonth: 'Tyto dva datumy musí být ve stejném měsíci - změňte jeden z nich.',
-	creditcard: 'Zadané číslo kreditní karty je neplatné. Prosím opravte ho. Bylo zadáno {length} čísel.'
-
-});
-
-
-/*
----
-
-name: Locale.da-DK.Date
-
-description: Date messages for Danish.
-
-license: MIT-style license
-
-authors:
-  - Martin Overgaard
-  - Henrik Hansen
-
-requires:
-  - /Locale
-
-provides: [Locale.da-DK.Date]
-
-...
-*/
-
-Locale.define('da-DK', 'Date', {
-
-	months: ['Januar', 'Februar', 'Marts', 'April', 'Maj', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'December'],
-	months_abbr: ['jan.', 'feb.', 'mar.', 'apr.', 'maj.', 'jun.', 'jul.', 'aug.', 'sep.', 'okt.', 'nov.', 'dec.'],
-	days: ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'],
-	days_abbr: ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'],
-
-	// Culture's date order: DD-MM-YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d-%m-%Y',
-	shortTime: '%H:%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '.',
-
-	lessThanMinuteAgo: 'mindre end et minut siden',
-	minuteAgo: 'omkring et minut siden',
-	minutesAgo: '{delta} minutter siden',
-	hourAgo: 'omkring en time siden',
-	hoursAgo: 'omkring {delta} timer siden',
-	dayAgo: '1 dag siden',
-	daysAgo: '{delta} dage siden',
-	weekAgo: '1 uge siden',
-	weeksAgo: '{delta} uger siden',
-	monthAgo: '1 måned siden',
-	monthsAgo: '{delta} måneder siden',
-	yearAgo: '1 år siden',
-	yearsAgo: '{delta} år siden',
-
-	lessThanMinuteUntil: 'mindre end et minut fra nu',
-	minuteUntil: 'omkring et minut fra nu',
-	minutesUntil: '{delta} minutter fra nu',
-	hourUntil: 'omkring en time fra nu',
-	hoursUntil: 'omkring {delta} timer fra nu',
-	dayUntil: '1 dag fra nu',
-	daysUntil: '{delta} dage fra nu',
-	weekUntil: '1 uge fra nu',
-	weeksUntil: '{delta} uger fra nu',
-	monthUntil: '1 måned fra nu',
-	monthsUntil: '{delta} måneder fra nu',
-	yearUntil: '1 år fra nu',
-	yearsUntil: '{delta} år fra nu'
-
-});
-
-
-/*
----
-
-name: Locale.da-DK.Form.Validator
-
-description: Form Validator messages for Danish.
-
-license: MIT-style license
-
-authors:
-  - Martin Overgaard
-
-requires:
-  - /Locale
-
-provides: [Locale.da-DK.Form.Validator]
-
-...
-*/
-
-Locale.define('da-DK', 'FormValidator', {
-
-	required: 'Feltet skal udfyldes.',
-	minLength: 'Skriv mindst {minLength} tegn (du skrev {length} tegn).',
-	maxLength: 'Skriv maksimalt {maxLength} tegn (du skrev {length} tegn).',
-	integer: 'Skriv et tal i dette felt. Decimal tal (f.eks. 1.25) er ikke tilladt.',
-	numeric: 'Skriv kun tal i dette felt (i.e. "1" eller "1.1" eller "-1" eller "-1.1").',
-	digits: 'Skriv kun tal og tegnsætning i dette felt (eksempel, et telefon nummer med bindestreg eller punktum er tilladt).',
-	alpha: 'Skriv kun bogstaver (a-z) i dette felt. Mellemrum og andre tegn er ikke tilladt.',
-	alphanum: 'Skriv kun bogstaver (a-z) eller tal (0-9) i dette felt. Mellemrum og andre tegn er ikke tilladt.',
-	dateSuchAs: 'Skriv en gyldig dato som {date}',
-	dateInFormatMDY: 'Skriv dato i formatet DD-MM-YYYY (f.eks. "31-12-1999")',
-	email: 'Skriv en gyldig e-mail adresse. F.eks "fred@domain.com".',
-	url: 'Skriv en gyldig URL adresse. F.eks "http://www.example.com".',
-	currencyDollar: 'Skriv et gldigt beløb. F.eks Kr.100.00 .',
-	oneRequired: 'Et eller flere af felterne i denne formular skal udfyldes.',
-	errorPrefix: 'Fejl: ',
-	warningPrefix: 'Advarsel: ',
-
-	// Form.Validator.Extras
-	noSpace: 'Der må ikke benyttes mellemrum i dette felt.',
-	reqChkByNode: 'Foretag et valg.',
-	requiredChk: 'Dette felt skal udfyldes.',
-	reqChkByName: 'Vælg en {label}.',
-	match: 'Dette felt skal matche {matchName} feltet',
-	startDate: 'start dato',
-	endDate: 'slut dato',
-	currendDate: 'dags dato',
-	afterDate: 'Datoen skal være større end eller lig med {label}.',
-	beforeDate: 'Datoen skal være mindre end eller lig med {label}.',
-	startMonth: 'Vælg en start måned',
-	sameMonth: 'De valgte datoer skal være i samme måned - skift en af dem.'
-
-});
-
-
-/*
----
-
-name: Locale.de-DE.Date
-
-description: Date messages for German.
-
-license: MIT-style license
-
-authors:
-  - Christoph Pojer
-  - Frank Rossi
-  - Ulrich Petri
-  - Fabian Beiner
-
-requires:
-  - /Locale
-
-provides: [Locale.de-DE.Date]
-
-...
-*/
-
-Locale.define('de-DE', 'Date', {
-
-	months: ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'],
-	months_abbr: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
-	days: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'],
-	days_abbr: ['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.'],
-
-	// Culture's date order: DD.MM.YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d.%m.%Y',
-	shortTime: '%H:%M',
-	AM: 'vormittags',
-	PM: 'nachmittags',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '.',
-
-	lessThanMinuteAgo: 'vor weniger als einer Minute',
-	minuteAgo: 'vor einer Minute',
-	minutesAgo: 'vor {delta} Minuten',
-	hourAgo: 'vor einer Stunde',
-	hoursAgo: 'vor {delta} Stunden',
-	dayAgo: 'vor einem Tag',
-	daysAgo: 'vor {delta} Tagen',
-	weekAgo: 'vor einer Woche',
-	weeksAgo: 'vor {delta} Wochen',
-	monthAgo: 'vor einem Monat',
-	monthsAgo: 'vor {delta} Monaten',
-	yearAgo: 'vor einem Jahr',
-	yearsAgo: 'vor {delta} Jahren',
-
-	lessThanMinuteUntil: 'in weniger als einer Minute',
-	minuteUntil: 'in einer Minute',
-	minutesUntil: 'in {delta} Minuten',
-	hourUntil: 'in ca. einer Stunde',
-	hoursUntil: 'in ca. {delta} Stunden',
-	dayUntil: 'in einem Tag',
-	daysUntil: 'in {delta} Tagen',
-	weekUntil: 'in einer Woche',
-	weeksUntil: 'in {delta} Wochen',
-	monthUntil: 'in einem Monat',
-	monthsUntil: 'in {delta} Monaten',
-	yearUntil: 'in einem Jahr',
-	yearsUntil: 'in {delta} Jahren'
-
-});
-
-
-/*
----
-
-name: Locale.de-CH.Date
-
-description: Date messages for German (Switzerland).
-
-license: MIT-style license
-
-authors:
-  - Michael van der Weg
-
-requires:
-  - /Locale
-  - /Locale.de-DE.Date
-
-provides: [Locale.de-CH.Date]
-
-...
-*/
-
-Locale.define('de-CH').inherit('de-DE', 'Date');
-
-
-/*
----
-
-name: Locale.de-CH.Form.Validator
-
-description: Form Validator messages for German (Switzerland).
-
-license: MIT-style license
-
-authors:
-  - Michael van der Weg
-
-requires:
-  - /Locale
-
-provides: [Locale.de-CH.Form.Validator]
-
-...
-*/
-
-Locale.define('de-CH', 'FormValidator', {
-
-	required: 'Dieses Feld ist obligatorisch.',
-	minLength: 'Geben Sie bitte mindestens {minLength} Zeichen ein (Sie haben {length} Zeichen eingegeben).',
-	maxLength: 'Bitte geben Sie nicht mehr als {maxLength} Zeichen ein (Sie haben {length} Zeichen eingegeben).',
-	integer: 'Geben Sie bitte eine ganze Zahl ein. Dezimalzahlen (z.B. 1.25) sind nicht erlaubt.',
-	numeric: 'Geben Sie bitte nur Zahlenwerte in dieses Eingabefeld ein (z.B. &quot;1&quot;, &quot;1.1&quot;, &quot;-1&quot; oder &quot;-1.1&quot;).',
-	digits: 'Benutzen Sie bitte nur Zahlen und Satzzeichen in diesem Eingabefeld (erlaubt ist z.B. eine Telefonnummer mit Bindestrichen und Punkten).',
-	alpha: 'Benutzen Sie bitte nur Buchstaben (a-z) in diesem Feld. Leerzeichen und andere Zeichen sind nicht erlaubt.',
-	alphanum: 'Benutzen Sie bitte nur Buchstaben (a-z) und Zahlen (0-9) in diesem Eingabefeld. Leerzeichen und andere Zeichen sind nicht erlaubt.',
-	dateSuchAs: 'Geben Sie bitte ein g&uuml;ltiges Datum ein. Wie zum Beispiel {date}',
-	dateInFormatMDY: 'Geben Sie bitte ein g&uuml;ltiges Datum ein. Wie zum Beispiel TT.MM.JJJJ (z.B. &quot;31.12.1999&quot;)',
-	email: 'Geben Sie bitte eine g&uuml;ltige E-Mail Adresse ein. Wie zum Beispiel &quot;maria@bernasconi.ch&quot;.',
-	url: 'Geben Sie bitte eine g&uuml;ltige URL ein. Wie zum Beispiel http://www.example.com.',
-	currencyDollar: 'Geben Sie bitte einen g&uuml;ltigen Betrag in Schweizer Franken ein. Wie zum Beispiel 100.00 CHF .',
-	oneRequired: 'Machen Sie f&uuml;r mindestens eines der Eingabefelder einen Eintrag.',
-	errorPrefix: 'Fehler: ',
-	warningPrefix: 'Warnung: ',
-
-	// Form.Validator.Extras
-	noSpace: 'In diesem Eingabefeld darf kein Leerzeichen sein.',
-	reqChkByNode: 'Es wurden keine Elemente gew&auml;hlt.',
-	requiredChk: 'Dieses Feld ist obligatorisch.',
-	reqChkByName: 'Bitte w&auml;hlen Sie ein {label}.',
-	match: 'Dieses Eingabefeld muss mit dem Feld {matchName} &uuml;bereinstimmen.',
-	startDate: 'Das Anfangsdatum',
-	endDate: 'Das Enddatum',
-	currendDate: 'Das aktuelle Datum',
-	afterDate: 'Das Datum sollte zur gleichen Zeit oder sp&auml;ter sein {label}.',
-	beforeDate: 'Das Datum sollte zur gleichen Zeit oder fr&uuml;her sein {label}.',
-	startMonth: 'W&auml;hlen Sie bitte einen Anfangsmonat',
-	sameMonth: 'Diese zwei Datumsangaben m&uuml;ssen im selben Monat sein - Sie m&uuml;ssen eine von beiden ver&auml;ndern.',
-	creditcard: 'Die eingegebene Kreditkartennummer ist ung&uuml;ltig. Bitte &uuml;berpr&uuml;fen Sie diese und versuchen Sie es erneut. {length} Zahlen eingegeben.'
-
-});
-
-
-/*
----
-
-name: Locale.de-DE.Form.Validator
-
-description: Form Validator messages for German.
-
-license: MIT-style license
-
-authors:
-  - Frank Rossi
-  - Ulrich Petri
-  - Fabian Beiner
-
-requires:
-  - /Locale
-
-provides: [Locale.de-DE.Form.Validator]
-
-...
-*/
-
-Locale.define('de-DE', 'FormValidator', {
-
-	required: 'Dieses Eingabefeld muss ausgefüllt werden.',
-	minLength: 'Geben Sie bitte mindestens {minLength} Zeichen ein (Sie haben nur {length} Zeichen eingegeben).',
-	maxLength: 'Geben Sie bitte nicht mehr als {maxLength} Zeichen ein (Sie haben {length} Zeichen eingegeben).',
-	integer: 'Geben Sie in diesem Eingabefeld bitte eine ganze Zahl ein. Dezimalzahlen (z.B. "1.25") sind nicht erlaubt.',
-	numeric: 'Geben Sie in diesem Eingabefeld bitte nur Zahlenwerte (z.B. "1", "1.1", "-1" oder "-1.1") ein.',
-	digits: 'Geben Sie in diesem Eingabefeld bitte nur Zahlen und Satzzeichen ein (z.B. eine Telefonnummer mit Bindestrichen und Punkten ist erlaubt).',
-	alpha: 'Geben Sie in diesem Eingabefeld bitte nur Buchstaben (a-z) ein. Leerzeichen und andere Zeichen sind nicht erlaubt.',
-	alphanum: 'Geben Sie in diesem Eingabefeld bitte nur Buchstaben (a-z) und Zahlen (0-9) ein. Leerzeichen oder andere Zeichen sind nicht erlaubt.',
-	dateSuchAs: 'Geben Sie bitte ein gültiges Datum ein (z.B. "{date}").',
-	dateInFormatMDY: 'Geben Sie bitte ein gültiges Datum im Format TT.MM.JJJJ ein (z.B. "31.12.1999").',
-	email: 'Geben Sie bitte eine gültige E-Mail-Adresse ein (z.B. "max@mustermann.de").',
-	url: 'Geben Sie bitte eine gültige URL ein (z.B. "http://www.example.com").',
-	currencyDollar: 'Geben Sie bitte einen gültigen Betrag in EURO ein (z.B. 100.00€).',
-	oneRequired: 'Bitte füllen Sie mindestens ein Eingabefeld aus.',
-	errorPrefix: 'Fehler: ',
-	warningPrefix: 'Warnung: ',
-
-	// Form.Validator.Extras
-	noSpace: 'Es darf kein Leerzeichen in diesem Eingabefeld sein.',
-	reqChkByNode: 'Es wurden keine Elemente gewählt.',
-	requiredChk: 'Dieses Feld muss ausgefüllt werden.',
-	reqChkByName: 'Bitte wählen Sie ein {label}.',
-	match: 'Dieses Eingabefeld muss mit dem {matchName} Eingabefeld übereinstimmen.',
-	startDate: 'Das Anfangsdatum',
-	endDate: 'Das Enddatum',
-	currendDate: 'Das aktuelle Datum',
-	afterDate: 'Das Datum sollte zur gleichen Zeit oder später sein als {label}.',
-	beforeDate: 'Das Datum sollte zur gleichen Zeit oder früher sein als {label}.',
-	startMonth: 'Wählen Sie bitte einen Anfangsmonat',
-	sameMonth: 'Diese zwei Datumsangaben müssen im selben Monat sein - Sie müssen eines von beiden verändern.',
-	creditcard: 'Die eingegebene Kreditkartennummer ist ungültig. Bitte überprüfen Sie diese und versuchen Sie es erneut. {length} Zahlen eingegeben.'
-
-});
-
-
-/*
----
-
-name: Locale.EU.Number
-
-description: Number messages for Europe.
-
-license: MIT-style license
-
-authors:
-  - Arian Stolwijk
-
-requires:
-  - /Locale
-
-provides: [Locale.EU.Number]
-
-...
-*/
-
-Locale.define('EU', 'Number', {
-
-	decimal: ',',
-	group: '.',
-
-	currency: {
-		prefix: '€ '
-	}
-
-});
-
-
-/*
----
-
-name: Locale.de-DE.Number
-
-description: Number messages for German.
-
-license: MIT-style license
-
-authors:
-  - Christoph Pojer
-
-requires:
-  - /Locale
-  - /Locale.EU.Number
-
-provides: [Locale.de-DE.Number]
-
-...
-*/
-
-Locale.define('de-DE').inherit('EU', 'Number');
-
-
-/*
----
-
-name: Locale.en-GB.Date
-
-description: Date messages for British English.
-
-license: MIT-style license
-
-authors:
-  - Aaron Newton
-
-requires:
-  - /Locale
-  - /Locale.en-US.Date
-
-provides: [Locale.en-GB.Date]
-
-...
-*/
-
-Locale.define('en-GB', 'Date', {
-
-	// Culture's date order: DD/MM/YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d/%m/%Y',
-	shortTime: '%H:%M'
-
-}).inherit('en-US', 'Date');
-
-
-/*
----
-
-name: Locale.es-ES.Date
-
-description: Date messages for Spanish.
-
-license: MIT-style license
-
-authors:
-  - Ãlfons Sanchez
-
-requires:
-  - /Locale
-
-provides: [Locale.es-ES.Date]
-
-...
-*/
-
-Locale.define('es-ES', 'Date', {
-
-	months: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
-	months_abbr: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
-	days: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
-	days_abbr: ['dom', 'lun', 'mar', 'mié', 'juv', 'vie', 'sáb'],
-
-	// Culture's date order: DD/MM/YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d/%m/%Y',
-	shortTime: '%H:%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '',
-
-	lessThanMinuteAgo: 'hace menos de un minuto',
-	minuteAgo: 'hace un minuto',
-	minutesAgo: 'hace {delta} minutos',
-	hourAgo: 'hace una hora',
-	hoursAgo: 'hace unas {delta} horas',
-	dayAgo: 'hace un día',
-	daysAgo: 'hace {delta} días',
-	weekAgo: 'hace una semana',
-	weeksAgo: 'hace unas {delta} semanas',
-	monthAgo: 'hace un mes',
-	monthsAgo: 'hace {delta} meses',
-	yearAgo: 'hace un año',
-	yearsAgo: 'hace {delta} años',
-
-	lessThanMinuteUntil: 'menos de un minuto desde ahora',
-	minuteUntil: 'un minuto desde ahora',
-	minutesUntil: '{delta} minutos desde ahora',
-	hourUntil: 'una hora desde ahora',
-	hoursUntil: 'unas {delta} horas desde ahora',
-	dayUntil: 'un día desde ahora',
-	daysUntil: '{delta} días desde ahora',
-	weekUntil: 'una semana desde ahora',
-	weeksUntil: 'unas {delta} semanas desde ahora',
-	monthUntil: 'un mes desde ahora',
-	monthsUntil: '{delta} meses desde ahora',
-	yearUntil: 'un año desde ahora',
-	yearsUntil: '{delta} años desde ahora'
-
-});
-
-
-/*
----
-
-name: Locale.es-AR.Date
-
-description: Date messages for Spanish (Argentina).
-
-license: MIT-style license
-
-authors:
-  - Ãlfons Sanchez
-  - Diego Massanti
-
-requires:
-  - /Locale
-  - /Locale.es-ES.Date
-
-provides: [Locale.es-AR.Date]
-
-...
-*/
-
-Locale.define('es-AR').inherit('es-ES', 'Date');
-
-
-/*
----
-
-name: Locale.es-AR.Form.Validator
-
-description: Form Validator messages for Spanish (Argentina).
-
-license: MIT-style license
-
-authors:
-  - Diego Massanti
-
-requires:
-  - /Locale
-
-provides: [Locale.es-AR.Form.Validator]
-
-...
-*/
-
-Locale.define('es-AR', 'FormValidator', {
-
-	required: 'Este campo es obligatorio.',
-	minLength: 'Por favor ingrese al menos {minLength} caracteres (ha ingresado {length} caracteres).',
-	maxLength: 'Por favor no ingrese más de {maxLength} caracteres (ha ingresado {length} caracteres).',
-	integer: 'Por favor ingrese un número entero en este campo. Números con decimales (p.e. 1,25) no se permiten.',
-	numeric: 'Por favor ingrese solo valores numéricos en este campo (p.e. "1" o "1,1" o "-1" o "-1,1").',
-	digits: 'Por favor use sólo números y puntuación en este campo (por ejemplo, un número de teléfono con guiones y/o puntos no está permitido).',
-	alpha: 'Por favor use sólo letras (a-z) en este campo. No se permiten espacios ni otros caracteres.',
-	alphanum: 'Por favor, usa sólo letras (a-z) o números (0-9) en este campo. No se permiten espacios u otros caracteres.',
-	dateSuchAs: 'Por favor ingrese una fecha válida como {date}',
-	dateInFormatMDY: 'Por favor ingrese una fecha válida, utulizando el formato DD/MM/YYYY (p.e. "31/12/1999")',
-	email: 'Por favor, ingrese una dirección de e-mail válida. Por ejemplo, "fred@dominio.com".',
-	url: 'Por favor ingrese una URL válida como http://www.example.com.',
-	currencyDollar: 'Por favor ingrese una cantidad válida de pesos. Por ejemplo $100,00 .',
-	oneRequired: 'Por favor ingrese algo para por lo menos una de estas entradas.',
-	errorPrefix: 'Error: ',
-	warningPrefix: 'Advertencia: ',
-
-	// Form.Validator.Extras
-	noSpace: 'No se permiten espacios en este campo.',
-	reqChkByNode: 'No hay elementos seleccionados.',
-	requiredChk: 'Este campo es obligatorio.',
-	reqChkByName: 'Por favor selecciona una {label}.',
-	match: 'Este campo necesita coincidir con el campo {matchName}',
-	startDate: 'la fecha de inicio',
-	endDate: 'la fecha de fin',
-	currendDate: 'la fecha actual',
-	afterDate: 'La fecha debe ser igual o posterior a {label}.',
-	beforeDate: 'La fecha debe ser igual o anterior a {label}.',
-	startMonth: 'Por favor selecciona un mes de origen',
-	sameMonth: 'Estas dos fechas deben estar en el mismo mes - debes cambiar una u otra.'
-
-});
-
-
-/*
----
-
-name: Locale.es-ES.Form.Validator
-
-description: Form Validator messages for Spanish.
-
-license: MIT-style license
-
-authors:
-  - Ãlfons Sanchez
-
-requires:
-  - /Locale
-
-provides: [Locale.es-ES.Form.Validator]
-
-...
-*/
-
-Locale.define('es-ES', 'FormValidator', {
-
-	required: 'Este campo es obligatorio.',
-	minLength: 'Por favor introduce al menos {minLength} caracteres (has introducido {length} caracteres).',
-	maxLength: 'Por favor introduce no m&aacute;s de {maxLength} caracteres (has introducido {length} caracteres).',
-	integer: 'Por favor introduce un n&uacute;mero entero en este campo. N&uacute;meros con decimales (p.e. 1,25) no se permiten.',
-	numeric: 'Por favor introduce solo valores num&eacute;ricos en este campo (p.e. "1" o "1,1" o "-1" o "-1,1").',
-	digits: 'Por favor usa solo n&uacute;meros y puntuaci&oacute;n en este campo (por ejemplo, un n&uacute;mero de tel&eacute;fono con guiones y puntos no esta permitido).',
-	alpha: 'Por favor usa letras solo (a-z) en este campo. No se admiten espacios ni otros caracteres.',
-	alphanum: 'Por favor, usa solo letras (a-z) o n&uacute;meros (0-9) en este campo. No se admiten espacios ni otros caracteres.',
-	dateSuchAs: 'Por favor introduce una fecha v&aacute;lida como {date}',
-	dateInFormatMDY: 'Por favor introduce una fecha v&aacute;lida como DD/MM/YYYY (p.e. "31/12/1999")',
-	email: 'Por favor, introduce una direcci&oacute;n de email v&aacute;lida. Por ejemplo, "fred@domain.com".',
-	url: 'Por favor introduce una URL v&aacute;lida como http://www.example.com.',
-	currencyDollar: 'Por favor introduce una cantidad v&aacute;lida de €. Por ejemplo €100,00 .',
-	oneRequired: 'Por favor introduce algo para por lo menos una de estas entradas.',
-	errorPrefix: 'Error: ',
-	warningPrefix: 'Aviso: ',
-
-	// Form.Validator.Extras
-	noSpace: 'No pueden haber espacios en esta entrada.',
-	reqChkByNode: 'No hay elementos seleccionados.',
-	requiredChk: 'Este campo es obligatorio.',
-	reqChkByName: 'Por favor selecciona una {label}.',
-	match: 'Este campo necesita coincidir con el campo {matchName}',
-	startDate: 'la fecha de inicio',
-	endDate: 'la fecha de fin',
-	currendDate: 'la fecha actual',
-	afterDate: 'La fecha debe ser igual o posterior a {label}.',
-	beforeDate: 'La fecha debe ser igual o anterior a {label}.',
-	startMonth: 'Por favor selecciona un mes de origen',
-	sameMonth: 'Estas dos fechas deben estar en el mismo mes - debes cambiar una u otra.'
-
-});
-
-
-/*
----
-
-name: Locale.et-EE.Date
-
-description: Date messages for Estonian.
-
-license: MIT-style license
-
-authors:
-  - Kevin Valdek
-
-requires:
-  - /Locale
-
-provides: [Locale.et-EE.Date]
-
-...
-*/
-
-Locale.define('et-EE', 'Date', {
-
-	months: ['jaanuar', 'veebruar', 'märts', 'aprill', 'mai', 'juuni', 'juuli', 'august', 'september', 'oktoober', 'november', 'detsember'],
-	months_abbr: ['jaan', 'veebr', 'märts', 'apr', 'mai', 'juuni', 'juuli', 'aug', 'sept', 'okt', 'nov', 'dets'],
-	days: ['pühapäev', 'esmaspäev', 'teisipäev', 'kolmapäev', 'neljapäev', 'reede', 'laupäev'],
-	days_abbr: ['pühap', 'esmasp', 'teisip', 'kolmap', 'neljap', 'reede', 'laup'],
-
-	// Culture's date order: MM.DD.YYYY
-	dateOrder: ['month', 'date', 'year'],
-	shortDate: '%m.%d.%Y',
-	shortTime: '%H:%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '',
-
-	lessThanMinuteAgo: 'vähem kui minut aega tagasi',
-	minuteAgo: 'umbes minut aega tagasi',
-	minutesAgo: '{delta} minutit tagasi',
-	hourAgo: 'umbes tund aega tagasi',
-	hoursAgo: 'umbes {delta} tundi tagasi',
-	dayAgo: '1 päev tagasi',
-	daysAgo: '{delta} päeva tagasi',
-	weekAgo: '1 nädal tagasi',
-	weeksAgo: '{delta} nädalat tagasi',
-	monthAgo: '1 kuu tagasi',
-	monthsAgo: '{delta} kuud tagasi',
-	yearAgo: '1 aasta tagasi',
-	yearsAgo: '{delta} aastat tagasi',
-
-	lessThanMinuteUntil: 'vähem kui minuti aja pärast',
-	minuteUntil: 'umbes minuti aja pärast',
-	minutesUntil: '{delta} minuti pärast',
-	hourUntil: 'umbes tunni aja pärast',
-	hoursUntil: 'umbes {delta} tunni pärast',
-	dayUntil: '1 päeva pärast',
-	daysUntil: '{delta} päeva pärast',
-	weekUntil: '1 nädala pärast',
-	weeksUntil: '{delta} nädala pärast',
-	monthUntil: '1 kuu pärast',
-	monthsUntil: '{delta} kuu pärast',
-	yearUntil: '1 aasta pärast',
-	yearsUntil: '{delta} aasta pärast'
-
-});
-
-
-/*
----
-
-name: Locale.et-EE.Form.Validator
-
-description: Form Validator messages for Estonian.
-
-license: MIT-style license
-
-authors:
-  - Kevin Valdek
-
-requires:
-  - /Locale
-
-provides: [Locale.et-EE.Form.Validator]
-
-...
-*/
-
-Locale.define('et-EE', 'FormValidator', {
-
-	required: 'Väli peab olema täidetud.',
-	minLength: 'Palun sisestage vähemalt {minLength} tähte (te sisestasite {length} tähte).',
-	maxLength: 'Palun ärge sisestage rohkem kui {maxLength} tähte (te sisestasite {length} tähte).',
-	integer: 'Palun sisestage väljale täisarv. Kümnendarvud (näiteks 1.25) ei ole lubatud.',
-	numeric: 'Palun sisestage ainult numbreid väljale (näiteks "1", "1.1", "-1" või "-1.1").',
-	digits: 'Palun kasutage ainult numbreid ja kirjavahemärke (telefoninumbri sisestamisel on lubatud kasutada kriipse ja punkte).',
-	alpha: 'Palun kasutage ainult tähti (a-z). Tühikud ja teised sümbolid on keelatud.',
-	alphanum: 'Palun kasutage ainult tähti (a-z) või numbreid (0-9). Tühikud ja teised sümbolid on keelatud.',
-	dateSuchAs: 'Palun sisestage kehtiv kuupäev kujul {date}',
-	dateInFormatMDY: 'Palun sisestage kehtiv kuupäev kujul MM.DD.YYYY (näiteks: "12.31.1999").',
-	email: 'Palun sisestage kehtiv e-maili aadress (näiteks: "fred@domain.com").',
-	url: 'Palun sisestage kehtiv URL (näiteks: http://www.example.com).',
-	currencyDollar: 'Palun sisestage kehtiv $ summa (näiteks: $100.00).',
-	oneRequired: 'Palun sisestage midagi vähemalt ühele antud väljadest.',
-	errorPrefix: 'Viga: ',
-	warningPrefix: 'Hoiatus: ',
-
-	// Form.Validator.Extras
-	noSpace: 'Väli ei tohi sisaldada tühikuid.',
-	reqChkByNode: 'Ükski väljadest pole valitud.',
-	requiredChk: 'Välja täitmine on vajalik.',
-	reqChkByName: 'Palun valige üks {label}.',
-	match: 'Väli peab sobima {matchName} väljaga',
-	startDate: 'algkuupäev',
-	endDate: 'lõppkuupäev',
-	currendDate: 'praegune kuupäev',
-	afterDate: 'Kuupäev peab olema võrdne või pärast {label}.',
-	beforeDate: 'Kuupäev peab olema võrdne või enne {label}.',
-	startMonth: 'Palun valige algkuupäev.',
-	sameMonth: 'Antud kaks kuupäeva peavad olema samas kuus - peate muutma ühte kuupäeva.'
-
-});
-
-
-/*
----
-
-name: Locale.fa.Date
-
-description: Date messages for Persian.
-
-license: MIT-style license
-
-authors:
-  - Amir Hossein Hodjaty Pour
-
-requires:
-  - /Locale
-
-provides: [Locale.fa.Date]
-
-...
-*/
-
-Locale.define('fa', 'Date', {
-
-	months: ['ژانویه', 'فوریه', 'مارس', 'آپریل', 'مه', 'ژوئن', 'ژوئیه', 'آگوست', 'سپتامبر', 'اکتبر', 'نوامبر', 'دسامبر'],
-	months_abbr: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
-	days: ['یکشنبه', 'دوشنبه', 'سه شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه'],
-	days_abbr: ['ي', 'د', 'س', 'چ', 'پ', 'ج', 'ش'],
-
-	// Culture's date order: MM/DD/YYYY
-	dateOrder: ['month', 'date', 'year'],
-	shortDate: '%m/%d/%Y',
-	shortTime: '%I:%M%p',
-	AM: 'ق.ظ',
-	PM: 'ب.ظ',
-
-	// Date.Extras
-	ordinal: 'ام',
-
-	lessThanMinuteAgo: 'کمتر از یک دقیقه پیش',
-	minuteAgo: 'حدود یک دقیقه پیش',
-	minutesAgo: '{delta} دقیقه پیش',
-	hourAgo: 'حدود یک ساعت پیش',
-	hoursAgo: 'حدود {delta} ساعت پیش',
-	dayAgo: '1 روز پیش',
-	daysAgo: '{delta} روز پیش',
-	weekAgo: '1 هفته پیش',
-	weeksAgo: '{delta} هفته پیش',
-	monthAgo: '1 ماه پیش',
-	monthsAgo: '{delta} ماه پیش',
-	yearAgo: '1 سال پیش',
-	yearsAgo: '{delta} سال پیش',
-
-	lessThanMinuteUntil: 'کمتر از یک دقیقه از حالا',
-	minuteUntil: 'حدود یک دقیقه از حالا',
-	minutesUntil: '{delta} دقیقه از حالا',
-	hourUntil: 'حدود یک ساعت از حالا',
-	hoursUntil: 'حدود {delta} ساعت از حالا',
-	dayUntil: '1 روز از حالا',
-	daysUntil: '{delta} روز از حالا',
-	weekUntil: '1 هفته از حالا',
-	weeksUntil: '{delta} هفته از حالا',
-	monthUntil: '1 ماه از حالا',
-	monthsUntil: '{delta} ماه از حالا',
-	yearUntil: '1 سال از حالا',
-	yearsUntil: '{delta} سال از حالا'
-
-});
-
-
-/*
----
-
-name: Locale.fa.Form.Validator
-
-description: Form Validator messages for Persian.
-
-license: MIT-style license
-
-authors:
-  - Amir Hossein Hodjaty Pour
-
-requires:
-  - /Locale
-
-provides: [Locale.fa.Form.Validator]
-
-...
-*/
-
-Locale.define('fa', 'FormValidator', {
-
-	required: 'این فیلد الزامی است.',
-	minLength: 'شما باید حداقل {minLength} حرف وارد کنید ({length} حرف وارد کرده اید).',
-	maxLength: 'لطفا حداکثر {maxLength} حرف وارد کنید (شما {length} حرف وارد کرده اید).',
-	integer: 'لطفا از عدد صحیح استفاده کنید. اعداد اعشاری (مانند 1.25) مجاز نیستند.',
-	numeric: 'لطفا فقط داده عددی وارد کنید (مانند "1" یا "1.1" یا "1-" یا "1.1-").',
-	digits: 'لطفا فقط از اعداد و علامتها در این فیلد استفاده کنید (برای مثال شماره تلفن با خط تیره و نقطه قابل قبول است).',
-	alpha: 'لطفا فقط از حروف الفباء برای این بخش استفاده کنید. کاراکترهای دیگر و فاصله مجاز نیستند.',
-	alphanum: 'لطفا فقط از حروف الفباء و اعداد در این بخش استفاده کنید. کاراکترهای دیگر و فاصله مجاز نیستند.',
-	dateSuchAs: 'لطفا یک تاریخ معتبر مانند {date} وارد کنید.',
-	dateInFormatMDY: 'لطفا یک تاریخ معتبر به شکل MM/DD/YYYY وارد کنید (مانند "12/31/1999").',
-	email: 'لطفا یک آدرس ایمیل معتبر وارد کنید. برای مثال "fred@domain.com".',
-	url: 'لطفا یک URL معتبر مانند http://www.example.com وارد کنید.',
-	currencyDollar: 'لطفا یک محدوده معتبر برای این بخش وارد کنید مانند 100.00$ .',
-	oneRequired: 'لطفا حداقل یکی از فیلدها را پر کنید.',
-	errorPrefix: 'خطا: ',
-	warningPrefix: 'هشدار: ',
-
-	// Form.Validator.Extras
-	noSpace: 'استفاده از فاصله در این بخش مجاز نیست.',
-	reqChkByNode: 'موردی انتخاب نشده است.',
-	requiredChk: 'این فیلد الزامی است.',
-	reqChkByName: 'لطفا یک {label} را انتخاب کنید.',
-	match: 'این فیلد باید با فیلد {matchName} مطابقت داشته باشد.',
-	startDate: 'تاریخ شروع',
-	endDate: 'تاریخ پایان',
-	currendDate: 'تاریخ کنونی',
-	afterDate: 'تاریخ میبایست برابر یا بعد از {label} باشد',
-	beforeDate: 'تاریخ میبایست برابر یا قبل از {label} باشد',
-	startMonth: 'لطفا ماه شروع را انتخاب کنید',
-	sameMonth: 'این دو تاریخ باید در یک ماه باشند - شما باید یکی یا هر دو را تغییر دهید.',
-	creditcard: 'شماره کارت اعتباری که وارد کرده اید معتبر نیست. لطفا شماره را بررسی کنید و مجددا تلاش کنید. {length} رقم وارد شده است.'
-
-});
-
-
-/*
----
-
-name: Locale.fi-FI.Date
-
-description: Date messages for Finnish.
-
-license: MIT-style license
-
-authors:
-  - ksel
-
-requires:
-  - /Locale
-
-provides: [Locale.fi-FI.Date]
-
-...
-*/
-
-Locale.define('fi-FI', 'Date', {
-
-	// NOTE: months and days are not capitalized in finnish
-	months: ['tammikuu', 'helmikuu', 'maaliskuu', 'huhtikuu', 'toukokuu', 'kesäkuu', 'heinäkuu', 'elokuu', 'syyskuu', 'lokakuu', 'marraskuu', 'joulukuu'],
-
-	// these abbreviations are really not much used in finnish because they obviously won't abbreviate very much. ;)
-	// NOTE: sometimes one can see forms such as "tammi", "helmi", etc. but that is not proper finnish.
-	months_abbr: ['tammik.', 'helmik.', 'maalisk.', 'huhtik.', 'toukok.', 'kesäk.', 'heinäk.', 'elok.', 'syysk.', 'lokak.', 'marrask.', 'jouluk.'],
-
-	days: ['sunnuntai', 'maanantai', 'tiistai', 'keskiviikko', 'torstai', 'perjantai', 'lauantai'],
-	days_abbr: ['su', 'ma', 'ti', 'ke', 'to', 'pe', 'la'],
-
-	// Culture's date order: DD/MM/YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d.%m.%Y',
-	shortTime: '%H:%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '.',
-
-	lessThanMinuteAgo: 'vajaa minuutti sitten',
-	minuteAgo: 'noin minuutti sitten',
-	minutesAgo: '{delta} minuuttia sitten',
-	hourAgo: 'noin tunti sitten',
-	hoursAgo: 'noin {delta} tuntia sitten',
-	dayAgo: 'päivä sitten',
-	daysAgo: '{delta} päivää sitten',
-	weekAgo: 'viikko sitten',
-	weeksAgo: '{delta} viikkoa sitten',
-	monthAgo: 'kuukausi sitten',
-	monthsAgo: '{delta} kuukautta sitten',
-	yearAgo: 'vuosi sitten',
-	yearsAgo: '{delta} vuotta sitten',
-
-	lessThanMinuteUntil: 'vajaan minuutin kuluttua',
-	minuteUntil: 'noin minuutin kuluttua',
-	minutesUntil: '{delta} minuutin kuluttua',
-	hourUntil: 'noin tunnin kuluttua',
-	hoursUntil: 'noin {delta} tunnin kuluttua',
-	dayUntil: 'päivän kuluttua',
-	daysUntil: '{delta} päivän kuluttua',
-	weekUntil: 'viikon kuluttua',
-	weeksUntil: '{delta} viikon kuluttua',
-	monthUntil: 'kuukauden kuluttua',
-	monthsUntil: '{delta} kuukauden kuluttua',
-	yearUntil: 'vuoden kuluttua',
-	yearsUntil: '{delta} vuoden kuluttua'
-
-});
-
-
-/*
----
-
-name: Locale.fi-FI.Form.Validator
-
-description: Form Validator messages for Finnish.
-
-license: MIT-style license
-
-authors:
-  - ksel
-
-requires:
-  - /Locale
-
-provides: [Locale.fi-FI.Form.Validator]
-
-...
-*/
-
-Locale.define('fi-FI', 'FormValidator', {
-
-	required: 'Tämä kenttä on pakollinen.',
-	minLength: 'Ole hyvä ja anna vähintään {minLength} merkkiä (annoit {length} merkkiä).',
-	maxLength: 'Älä anna enempää kuin {maxLength} merkkiä (annoit {length} merkkiä).',
-	integer: 'Ole hyvä ja anna kokonaisluku. Luvut, joissa on desimaaleja (esim. 1.25) eivät ole sallittuja.',
-	numeric: 'Anna tähän kenttään lukuarvo (kuten "1" tai "1.1" tai "-1" tai "-1.1").',
-	digits: 'Käytä pelkästään numeroita ja välimerkkejä tässä kentässä (syötteet, kuten esim. puhelinnumero, jossa on väliviivoja, pilkkuja tai pisteitä, kelpaa).',
-	alpha: 'Anna tähän kenttään vain kirjaimia (a-z). Välilyönnit tai muut merkit eivät ole sallittuja.',
-	alphanum: 'Anna tähän kenttään vain kirjaimia (a-z) tai numeroita (0-9). Välilyönnit tai muut merkit eivät ole sallittuja.',
-	dateSuchAs: 'Ole hyvä ja anna kelvollinen päivmäärä, kuten esimerkiksi {date}',
-	dateInFormatMDY: 'Ole hyvä ja anna kelvollinen päivämäärä muodossa pp/kk/vvvv (kuten "12/31/1999")',
-	email: 'Ole hyvä ja anna kelvollinen sähköpostiosoite (kuten esimerkiksi "matti@meikalainen.com").',
-	url: 'Ole hyvä ja anna kelvollinen URL, kuten esimerkiksi http://www.example.com.',
-	currencyDollar: 'Ole hyvä ja anna kelvollinen eurosumma (kuten esimerkiksi 100,00 EUR) .',
-	oneRequired: 'Ole hyvä ja syötä jotakin ainakin johonkin näistä kentistä.',
-	errorPrefix: 'Virhe: ',
-	warningPrefix: 'Varoitus: ',
-
-	// Form.Validator.Extras
-	noSpace: 'Tässä syötteessä ei voi olla välilyöntejä',
-	reqChkByNode: 'Ei valintoja.',
-	requiredChk: 'Tämä kenttä on pakollinen.',
-	reqChkByName: 'Ole hyvä ja valitse {label}.',
-	match: 'Tämän kentän tulee vastata kenttää {matchName}',
-	startDate: 'alkupäivämäärä',
-	endDate: 'loppupäivämäärä',
-	currendDate: 'nykyinen päivämäärä',
-	afterDate: 'Päivämäärän tulisi olla sama tai myöhäisempi ajankohta kuin {label}.',
-	beforeDate: 'Päivämäärän tulisi olla sama tai aikaisempi ajankohta kuin {label}.',
-	startMonth: 'Ole hyvä ja valitse aloituskuukausi',
-	sameMonth: 'Näiden kahden päivämäärän tulee olla saman kuun sisällä -- sinun pitää muuttaa jompaa kumpaa.',
-	creditcard: 'Annettu luottokortin numero ei kelpaa. Ole hyvä ja tarkista numero sekä yritä uudelleen. {length} numeroa syötetty.'
-
-});
-
-
-/*
----
-
-name: Locale.fi-FI.Number
-
-description: Finnish number messages
-
-license: MIT-style license
-
-authors:
-  - ksel
-
-requires:
-  - /Locale
-  - /Locale.EU.Number
-
-provides: [Locale.fi-FI.Number]
-
-...
-*/
-
-Locale.define('fi-FI', 'Number', {
-
-	group: ' ' // grouped by space
-
-}).inherit('EU', 'Number');
-
-
-/*
----
-
-name: Locale.fr-FR.Date
-
-description: Date messages for French.
-
-license: MIT-style license
-
-authors:
-  - Nicolas Sorosac
-  - Antoine Abt
-
-requires:
-  - /Locale
-
-provides: [Locale.fr-FR.Date]
-
-...
-*/
-
-Locale.define('fr-FR', 'Date', {
-
-	months: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'],
-	months_abbr: ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'],
-	days: ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
-	days_abbr: ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'],
-
-	// Culture's date order: DD/MM/YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d/%m/%Y',
-	shortTime: '%H:%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: function(dayOfMonth){
-		return (dayOfMonth > 1) ? '' : 'er';
-	},
-
-	lessThanMinuteAgo: "il y a moins d'une minute",
-	minuteAgo: 'il y a une minute',
-	minutesAgo: 'il y a {delta} minutes',
-	hourAgo: 'il y a une heure',
-	hoursAgo: 'il y a {delta} heures',
-	dayAgo: 'il y a un jour',
-	daysAgo: 'il y a {delta} jours',
-	weekAgo: 'il y a une semaine',
-	weeksAgo: 'il y a {delta} semaines',
-	monthAgo: 'il y a 1 mois',
-	monthsAgo: 'il y a {delta} mois',
-	yearthAgo: 'il y a 1 an',
-	yearsAgo: 'il y a {delta} ans',
-
-	lessThanMinuteUntil: "dans moins d'une minute",
-	minuteUntil: 'dans une minute',
-	minutesUntil: 'dans {delta} minutes',
-	hourUntil: 'dans une heure',
-	hoursUntil: 'dans {delta} heures',
-	dayUntil: 'dans un jour',
-	daysUntil: 'dans {delta} jours',
-	weekUntil: 'dans 1 semaine',
-	weeksUntil: 'dans {delta} semaines',
-	monthUntil: 'dans 1 mois',
-	monthsUntil: 'dans {delta} mois',
-	yearUntil: 'dans 1 an',
-	yearsUntil: 'dans {delta} ans'
-
-});
-
-
-/*
----
-
-name: Locale.fr-FR.Form.Validator
-
-description: Form Validator messages for French.
-
-license: MIT-style license
-
-authors:
-  - Miquel Hudin
-  - Nicolas Sorosac
-
-requires:
-  - /Locale
-
-provides: [Locale.fr-FR.Form.Validator]
-
-...
-*/
-
-Locale.define('fr-FR', 'FormValidator', {
-
-	required: 'Ce champ est obligatoire.',
-	minLength: 'Veuillez saisir un minimum de {minLength} caract&egrave;re(s) (vous avez saisi {length} caract&egrave;re(s)).',
-	maxLength: 'Veuillez saisir un maximum de {maxLength} caract&egrave;re(s) (vous avez saisi {length} caract&egrave;re(s)).',
-	integer: 'Veuillez saisir un nombre entier dans ce champ. Les nombres d&eacute;cimaux (ex : "1,25") ne sont pas autoris&eacute;s.',
-	numeric: 'Veuillez saisir uniquement des chiffres dans ce champ (ex : "1" ou "1,1" ou "-1" ou "-1,1").',
-	digits: "Veuillez saisir uniquement des chiffres et des signes de ponctuation dans ce champ (ex : un num&eacute;ro de t&eacute;l&eacute;phone avec des traits d'union est autoris&eacute;).",
-	alpha: 'Veuillez saisir uniquement des lettres (a-z) dans ce champ. Les espaces ou autres caract&egrave;res ne sont pas autoris&eacute;s.',
-	alphanum: 'Veuillez saisir uniquement des lettres (a-z) ou des chiffres (0-9) dans ce champ. Les espaces ou autres caract&egrave;res ne sont pas autoris&eacute;s.',
-	dateSuchAs: 'Veuillez saisir une date correcte comme {date}',
-	dateInFormatMDY: 'Veuillez saisir une date correcte, au format JJ/MM/AAAA (ex : "31/11/1999").',
-	email: 'Veuillez saisir une adresse de courrier &eacute;lectronique. Par example "fred@domaine.com".',
-	url: 'Veuillez saisir une URL, comme http://www.example.com.',
-	currencyDollar: 'Veuillez saisir une quantit&eacute; correcte. Par example 100,00&euro;.',
-	oneRequired: 'Veuillez s&eacute;lectionner au moins une de ces options.',
-	errorPrefix: 'Erreur : ',
-	warningPrefix: 'Attention : ',
-
-	// Form.Validator.Extras
-	noSpace: "Ce champ n'accepte pas les espaces.",
-	reqChkByNode: "Aucun &eacute;l&eacute;ment n'est s&eacute;lectionn&eacute;.",
-	requiredChk: 'Ce champ est obligatoire.',
-	reqChkByName: 'Veuillez s&eacute;lectionner un(e) {label}.',
-	match: 'Ce champ doit correspondre avec le champ {matchName}.',
-	startDate: 'date de d&eacute;but',
-	endDate: 'date de fin',
-	currendDate: 'date actuelle',
-	afterDate: 'La date doit &ecirc;tre identique ou post&eacute;rieure &agrave; {label}.',
-	beforeDate: 'La date doit &ecirc;tre identique ou ant&eacute;rieure &agrave; {label}.',
-	startMonth: 'Veuillez s&eacute;lectionner un mois de d&eacute;but.',
-	sameMonth: 'Ces deux dates doivent &ecirc;tre dans le m&ecirc;me mois - vous devez en modifier une.',
-	creditcard: 'Le num&eacute;ro de carte de cr&eacute;dit est invalide. Merci de v&eacute;rifier le num&eacute;ro et de r&eacute;essayer. Vous avez entr&eacute; {length} chiffre(s).'
-
-});
-
-
-/*
----
-
-name: Locale.fr-FR.Number
-
-description: Number messages for French.
-
-license: MIT-style license
-
-authors:
-  - Arian Stolwijk
-  - sv1l
-
-requires:
-  - /Locale
-  - /Locale.EU.Number
-
-provides: [Locale.fr-FR.Number]
-
-...
-*/
-
-Locale.define('fr-FR', 'Number', {
-
-	group: ' ' // In fr-FR localization, group character is a blank space
-
-}).inherit('EU', 'Number');
-
-
-/*
----
-
-name: Locale.he-IL.Date
-
-description: Date messages for Hebrew.
-
-license: MIT-style license
-
-authors:
-  - Elad Ossadon
-
-requires:
-  - /Locale
-
-provides: [Locale.he-IL.Date]
-
-...
-*/
-
-Locale.define('he-IL', 'Date', {
-
-	months: ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'],
-	months_abbr: ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'],
-	days: ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'],
-	days_abbr: ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'],
-
-	// Culture's date order: MM/DD/YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d/%m/%Y',
-	shortTime: '%H:%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 0,
-
-	// Date.Extras
-	ordinal: '',
-
-	lessThanMinuteAgo: 'לפני פחות מדקה',
-	minuteAgo: 'לפני כדקה',
-	minutesAgo: 'לפני {delta} דקות',
-	hourAgo: 'לפני כשעה',
-	hoursAgo: 'לפני {delta} שעות',
-	dayAgo: 'לפני יום',
-	daysAgo: 'לפני {delta} ימים',
-	weekAgo: 'לפני שבוע',
-	weeksAgo: 'לפני {delta} שבועות',
-	monthAgo: 'לפני חודש',
-	monthsAgo: 'לפני {delta} חודשים',
-	yearAgo: 'לפני שנה',
-	yearsAgo: 'לפני {delta} שנים',
-
-	lessThanMinuteUntil: 'בעוד פחות מדקה',
-	minuteUntil: 'בעוד כדקה',
-	minutesUntil: 'בעוד {delta} דקות',
-	hourUntil: 'בעוד כשעה',
-	hoursUntil: 'בעוד {delta} שעות',
-	dayUntil: 'בעוד יום',
-	daysUntil: 'בעוד {delta} ימים',
-	weekUntil: 'בעוד שבוע',
-	weeksUntil: 'בעוד {delta} שבועות',
-	monthUntil: 'בעוד חודש',
-	monthsUntil: 'בעוד {delta} חודשים',
-	yearUntil: 'בעוד שנה',
-	yearsUntil: 'בעוד {delta} שנים'
-
-});
-
-
-/*
----
-
-name: Locale.he-IL.Form.Validator
-
-description: Form Validator messages for Hebrew.
-
-license: MIT-style license
-
-authors:
-  - Elad Ossadon
-
-requires:
-  - /Locale
-
-provides: [Locale.he-IL.Form.Validator]
-
-...
-*/
-
-Locale.define('he-IL', 'FormValidator', {
-
-	required: 'נא למלא שדה זה.',
-	minLength: 'נא להזין לפחות {minLength} תווים (הזנת {length} תווים).',
-	maxLength: 'נא להזין עד {maxLength} תווים (הזנת {length} תווים).',
-	integer: 'נא להזין מספר שלם לשדה זה. מספרים עשרוניים (כמו 1.25) אינם חוקיים.',
-	numeric: 'נא להזין ערך מספרי בלבד בשדה זה (כמו "1", "1.1", "-1" או "-1.1").',
-	digits: 'נא להזין רק ספרות וסימני הפרדה בשדה זה (למשל, מספר טלפון עם מקפים או נקודות הוא חוקי).',
-	alpha: 'נא להזין רק אותיות באנגלית (a-z) בשדה זה. רווחים או תווים אחרים אינם חוקיים.',
-	alphanum: 'נא להזין רק אותריות באנגלית (a-z) או ספרות (0-9) בשדה זה. אווחרים או תווים אחרים אינם חוקיים.',
-	dateSuchAs: 'נא להזין תאריך חוקי, כמו {date}',
-	dateInFormatMDY: 'נא להזין תאריך חוקי בפורמט MM/DD/YYYY (כמו "12/31/1999")',
-	email: 'נא להזין כתובת אימייל חוקית. לדוגמה: "fred@domain.com".',
-	url: 'נא להזין כתובת אתר חוקית, כמו http://www.example.com.',
-	currencyDollar: 'נא להזין סכום דולרי חוקי. לדוגמה $100.00.',
-	oneRequired: 'נא לבחור לפחות בשדה אחד.',
-	errorPrefix: 'שגיאה: ',
-	warningPrefix: 'אזהרה: ',
-
-	// Form.Validator.Extras
-	noSpace: 'אין להזין רווחים בשדה זה.',
-	reqChkByNode: 'נא לבחור אחת מהאפשרויות.',
-	requiredChk: 'שדה זה נדרש.',
-	reqChkByName: 'נא לבחור {label}.',
-	match: 'שדה זה צריך להתאים לשדה {matchName}',
-	startDate: 'תאריך ההתחלה',
-	endDate: 'תאריך הסיום',
-	currendDate: 'התאריך הנוכחי',
-	afterDate: 'התאריך צריך להיות זהה או אחרי {label}.',
-	beforeDate: 'התאריך צריך להיות זהה או לפני {label}.',
-	startMonth: 'נא לבחור חודש התחלה',
-	sameMonth: 'שני תאריכים אלה צריכים להיות באותו חודש - נא לשנות אחד התאריכים.',
-	creditcard: 'מספר כרטיס האשראי שהוזן אינו חוקי. נא לבדוק שנית. הוזנו {length} ספרות.'
-
-});
-
-
-/*
----
-
-name: Locale.he-IL.Number
-
-description: Number messages for Hebrew.
-
-license: MIT-style license
-
-authors:
-  - Elad Ossadon
-
-requires:
-  - /Locale
-
-provides: [Locale.he-IL.Number]
-
-...
-*/
-
-Locale.define('he-IL', 'Number', {
-
-	decimal: '.',
-	group: ',',
-
-	currency: {
-		suffix: ' ₪'
-	}
-
-});
-
-
-/*
----
-
-name: Locale.hu-HU.Date
-
-description: Date messages for Hungarian.
-
-license: MIT-style license
-
-authors:
-  - Zsolt Szegheő
-
-requires:
-  - /Locale
-
-provides: [Locale.hu-HU.Date]
-
-...
-*/
-
-Locale.define('hu-HU', 'Date', {
-
-	months: ['Január', 'Február', 'Március', 'Április', 'Május', 'Június', 'Július', 'Augusztus', 'Szeptember', 'Október', 'November', 'December'],
-	months_abbr: ['jan.', 'febr.', 'márc.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szept.', 'okt.', 'nov.', 'dec.'],
-	days: ['Vasárnap', 'Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat'],
-	days_abbr: ['V', 'H', 'K', 'Sze', 'Cs', 'P', 'Szo'],
-
-	// Culture's date order: YYYY.MM.DD.
-	dateOrder: ['year', 'month', 'date'],
-	shortDate: '%Y.%m.%d.',
-	shortTime: '%I:%M',
-	AM: 'de.',
-	PM: 'du.',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '.',
-
-	lessThanMinuteAgo: 'alig egy perce',
-	minuteAgo: 'egy perce',
-	minutesAgo: '{delta} perce',
-	hourAgo: 'egy órája',
-	hoursAgo: '{delta} órája',
-	dayAgo: '1 napja',
-	daysAgo: '{delta} napja',
-	weekAgo: '1 hete',
-	weeksAgo: '{delta} hete',
-	monthAgo: '1 hónapja',
-	monthsAgo: '{delta} hónapja',
-	yearAgo: '1 éve',
-	yearsAgo: '{delta} éve',
-
-	lessThanMinuteUntil: 'alig egy perc múlva',
-	minuteUntil: 'egy perc múlva',
-	minutesUntil: '{delta} perc múlva',
-	hourUntil: 'egy óra múlva',
-	hoursUntil: '{delta} óra múlva',
-	dayUntil: '1 nap múlva',
-	daysUntil: '{delta} nap múlva',
-	weekUntil: '1 hét múlva',
-	weeksUntil: '{delta} hét múlva',
-	monthUntil: '1 hónap múlva',
-	monthsUntil: '{delta} hónap múlva',
-	yearUntil: '1 év múlva',
-	yearsUntil: '{delta} év múlva'
-
-});
-
-
-/*
----
-
-name: Locale.hu-HU.Form.Validator
-
-description: Form Validator messages for Hungarian.
-
-license: MIT-style license
-
-authors:
-  - Zsolt Szegheő
-
-requires:
-  - /Locale
-
-provides: [Locale.hu-HU.Form.Validator]
-
-...
-*/
-
-Locale.define('hu-HU', 'FormValidator', {
-
-	required: 'A mező kitöltése kötelező.',
-	minLength: 'Legalább {minLength} karakter megadása szükséges (megadva {length} karakter).',
-	maxLength: 'Legfeljebb {maxLength} karakter megadása lehetséges (megadva {length} karakter).',
-	integer: 'Egész szám megadása szükséges. A tizedesjegyek (pl. 1.25) nem engedélyezettek.',
-	numeric: 'Szám megadása szükséges (pl. "1" vagy "1.1" vagy "-1" vagy "-1.1").',
-	digits: 'Csak számok és írásjelek megadása lehetséges (pl. telefonszám kötőjelek és/vagy perjelekkel).',
-	alpha: 'Csak betűk (a-z) megadása lehetséges. Szóköz és egyéb karakterek nem engedélyezettek.',
-	alphanum: 'Csak betűk (a-z) vagy számok (0-9) megadása lehetséges. Szóköz és egyéb karakterek nem engedélyezettek.',
-	dateSuchAs: 'Valós dátum megadása szükséges (pl. {date}).',
-	dateInFormatMDY: 'Valós dátum megadása szükséges ÉÉÉÉ.HH.NN. formában. (pl. "1999.12.31.")',
-	email: 'Valós e-mail cím megadása szükséges (pl. "fred@domain.hu").',
-	url: 'Valós URL megadása szükséges (pl. http://www.example.com).',
-	currencyDollar: 'Valós pénzösszeg megadása szükséges (pl. 100.00 Ft.).',
-	oneRequired: 'Az alábbi mezők legalább egyikének kitöltése kötelező.',
-	errorPrefix: 'Hiba: ',
-	warningPrefix: 'Figyelem: ',
-
-	// Form.Validator.Extras
-	noSpace: 'A mező nem tartalmazhat szóközöket.',
-	reqChkByNode: 'Nincs egyetlen kijelölt elem sem.',
-	requiredChk: 'A mező kitöltése kötelező.',
-	reqChkByName: 'Egy {label} kiválasztása szükséges.',
-	match: 'A mezőnek egyeznie kell a(z) {matchName} mezővel.',
-	startDate: 'a kezdet dátuma',
-	endDate: 'a vég dátuma',
-	currendDate: 'jelenlegi dátum',
-	afterDate: 'A dátum nem lehet kisebb, mint {label}.',
-	beforeDate: 'A dátum nem lehet nagyobb, mint {label}.',
-	startMonth: 'Kezdeti hónap megadása szükséges.',
-	sameMonth: 'A két dátumnak ugyanazon hónapban kell lennie.',
-	creditcard: 'A megadott bankkártyaszám nem valódi (megadva {length} számjegy).'
-
-});
-
-
-/*
----
-
-name: Locale.it-IT.Date
-
-description: Date messages for Italian.
-
-license: MIT-style license.
-
-authors:
-  - Andrea Novero
-  - Valerio Proietti
-
-requires:
-  - /Locale
-
-provides: [Locale.it-IT.Date]
-
-...
-*/
-
-Locale.define('it-IT', 'Date', {
-
-	months: ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'],
-	months_abbr: ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'],
-	days: ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'],
-	days_abbr: ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'],
-
-	// Culture's date order: DD/MM/YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d/%m/%Y',
-	shortTime: '%H.%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: 'º',
-
-	lessThanMinuteAgo: 'meno di un minuto fa',
-	minuteAgo: 'circa un minuto fa',
-	minutesAgo: 'circa {delta} minuti fa',
-	hourAgo: "circa un'ora fa",
-	hoursAgo: 'circa {delta} ore fa',
-	dayAgo: 'circa 1 giorno fa',
-	daysAgo: 'circa {delta} giorni fa',
-
-	lessThanMinuteUntil: 'tra meno di un minuto',
-	minuteUntil: 'tra circa un minuto',
-	minutesUntil: 'tra circa {delta} minuti',
-	hourUntil: "tra circa un'ora",
-	hoursUntil: 'tra circa {delta} ore',
-	dayUntil: 'tra circa un giorno',
-	daysUntil: 'tra circa {delta} giorni'
-
-});
-
-
-/*
----
-
-name: Locale.it-IT.Form.Validator
-
-description: Form Validator messages for Italian.
-
-license: MIT-style license
-
-authors:
-  - Leonardo Laureti
-  - Andrea Novero
-
-requires:
-  - /Locale
-
-provides: [Locale.it-IT.Form.Validator]
-
-...
-*/
-
-Locale.define('it-IT', 'FormValidator', {
-
-	required: 'Il campo &egrave; obbligatorio.',
-	minLength: 'Inserire almeno {minLength} caratteri (ne sono stati inseriti {length}).',
-	maxLength: 'Inserire al massimo {maxLength} caratteri (ne sono stati inseriti {length}).',
-	integer: 'Inserire un numero intero. Non sono consentiti decimali (es.: 1.25).',
-	numeric: 'Inserire solo valori numerici (es.: "1" oppure "1.1" oppure "-1" oppure "-1.1").',
-	digits: 'Inserire solo numeri e caratteri di punteggiatura. Per esempio &egrave; consentito un numero telefonico con trattini o punti.',
-	alpha: 'Inserire solo lettere (a-z). Non sono consentiti spazi o altri caratteri.',
-	alphanum: 'Inserire solo lettere (a-z) o numeri (0-9). Non sono consentiti spazi o altri caratteri.',
-	dateSuchAs: 'Inserire una data valida del tipo {date}',
-	dateInFormatMDY: 'Inserire una data valida nel formato MM/GG/AAAA (es.: "12/31/1999")',
-	email: 'Inserire un indirizzo email valido. Per esempio "nome@dominio.com".',
-	url: 'Inserire un indirizzo valido. Per esempio "http://www.example.com".',
-	currencyDollar: 'Inserire un importo valido. Per esempio "$100.00".',
-	oneRequired: 'Completare almeno uno dei campi richiesti.',
-	errorPrefix: 'Errore: ',
-	warningPrefix: 'Attenzione: ',
-
-	// Form.Validator.Extras
-	noSpace: 'Non sono consentiti spazi.',
-	reqChkByNode: 'Nessuna voce selezionata.',
-	requiredChk: 'Il campo &egrave; obbligatorio.',
-	reqChkByName: 'Selezionare un(a) {label}.',
-	match: 'Il valore deve corrispondere al campo {matchName}',
-	startDate: "data d'inizio",
-	endDate: 'data di fine',
-	currendDate: 'data attuale',
-	afterDate: 'La data deve corrispondere o essere successiva al {label}.',
-	beforeDate: 'La data deve corrispondere o essere precedente al {label}.',
-	startMonth: "Selezionare un mese d'inizio",
-	sameMonth: 'Le due date devono essere dello stesso mese - occorre modificarne una.'
-
-});
-
-
-/*
----
-
-name: Locale.ja-JP.Date
-
-description: Date messages for Japanese.
-
-license: MIT-style license
-
-authors:
-  - Noritaka Horio
-
-requires:
-  - /Locale
-
-provides: [Locale.ja-JP.Date]
-
-...
-*/
-
-Locale.define('ja-JP', 'Date', {
-
-	months: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
-	months_abbr: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
-	days: ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'],
-	days_abbr: ['日', '月', '火', '水', '木', '金', '土'],
-
-	// Culture's date order: YYYY/MM/DD
-	dateOrder: ['year', 'month', 'date'],
-	shortDate: '%Y/%m/%d',
-	shortTime: '%H:%M',
-	AM: '午前',
-	PM: '午後',
-	firstDayOfWeek: 0,
-
-	// Date.Extras
-	ordinal: '',
-
-	lessThanMinuteAgo: '1分以内前',
-	minuteAgo: '約1分前',
-	minutesAgo: '約{delta}分前',
-	hourAgo: '約1時間前',
-	hoursAgo: '約{delta}時間前',
-	dayAgo: '1日前',
-	daysAgo: '{delta}日前',
-	weekAgo: '1週間前',
-	weeksAgo: '{delta}週間前',
-	monthAgo: '1ヶ月前',
-	monthsAgo: '{delta}ヶ月前',
-	yearAgo: '1年前',
-	yearsAgo: '{delta}年前',
-
-	lessThanMinuteUntil: '今から約1分以内',
-	minuteUntil: '今から約1分',
-	minutesUntil: '今から約{delta}分',
-	hourUntil: '今から約1時間',
-	hoursUntil: '今から約{delta}時間',
-	dayUntil: '今から1日間',
-	daysUntil: '今から{delta}日間',
-	weekUntil: '今から1週間',
-	weeksUntil: '今から{delta}週間',
-	monthUntil: '今から1ヶ月',
-	monthsUntil: '今から{delta}ヶ月',
-	yearUntil: '今から1年',
-	yearsUntil: '今から{delta}年'
-
-});
-
-
-/*
----
-
-name: Locale.ja-JP.Form.Validator
-
-description: Form Validator messages for Japanese.
-
-license: MIT-style license
-
-authors:
-  - Noritaka Horio
-
-requires:
-  - /Locale
-
-provides: [Locale.ja-JP.Form.Validator]
-
-...
-*/
-
-Locale.define("ja-JP", "FormValidator", {
-
-	required: '入力は必須です。',
-	minLength: '入力文字数は{minLength}以上にしてください。({length}文字)',
-	maxLength: '入力文字数は{maxLength}以下にしてください。({length}文字)',
-	integer: '整数を入力してください。',
-	numeric: '入力できるのは数値だけです。(例: "1", "1.1", "-1", "-1.1"....)',
-	digits: '入力できるのは数値と句読記号です。 (例: -や+を含む電話番号など).',
-	alpha: '入力できるのは半角英字だけです。それ以外の文字は入力できません。',
-	alphanum: '入力できるのは半角英数字だけです。それ以外の文字は入力できません。',
-	dateSuchAs: '有効な日付を入力してください。{date}',
-	dateInFormatMDY: '日付の書式に誤りがあります。YYYY/MM/DD (i.e. "1999/12/31")',
-	email: 'メールアドレスに誤りがあります。',
-	url: 'URLアドレスに誤りがあります。',
-	currencyDollar: '金額に誤りがあります。',
-	oneRequired: 'ひとつ以上入力してください。',
-	errorPrefix: 'エラー: ',
-	warningPrefix: '警告: ',
-
-	// FormValidator.Extras
-	noSpace: 'スペースは入力できません。',
-	reqChkByNode: '選択されていません。',
-	requiredChk: 'この項目は必須です。',
-	reqChkByName: '{label}を選択してください。',
-	match: '{matchName}が入力されている場合必須です。',
-	startDate: '開始日',
-	endDate: '終了日',
-	currendDate: '今日',
-	afterDate: '{label}以降の日付にしてください。',
-	beforeDate: '{label}以前の日付にしてください。',
-	startMonth: '開始月を選択してください。',
-	sameMonth: '日付が同一です。どちらかを変更してください。'
-
-});
-
-
-/*
----
-
-name: Locale.ja-JP.Number
-
-description: Number messages for Japanese.
-
-license: MIT-style license
-
-authors:
-  - Noritaka Horio
-
-requires:
-  - /Locale
-
-provides: [Locale.ja-JP.Number]
-
-...
-*/
-
-Locale.define('ja-JP', 'Number', {
-
-	decimal: '.',
-	group: ',',
-
-	currency: {
-		decimals: 0,
-		prefix: '\\'
-	}
-
-});
-
-
-/*
----
-
-name: Locale.nl-NL.Date
-
-description: Date messages for Dutch.
-
-license: MIT-style license
-
-authors:
-  - Lennart Pilon
-  - Tim Wienk
-
-requires:
-  - /Locale
-
-provides: [Locale.nl-NL.Date]
-
-...
-*/
-
-Locale.define('nl-NL', 'Date', {
-
-	months: ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'],
-	months_abbr: ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'],
-	days: ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'],
-	days_abbr: ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'],
-
-	// Culture's date order: DD-MM-YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d-%m-%Y',
-	shortTime: '%H:%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: 'e',
-
-	lessThanMinuteAgo: 'minder dan een minuut geleden',
-	minuteAgo: 'ongeveer een minuut geleden',
-	minutesAgo: '{delta} minuten geleden',
-	hourAgo: 'ongeveer een uur geleden',
-	hoursAgo: 'ongeveer {delta} uur geleden',
-	dayAgo: 'een dag geleden',
-	daysAgo: '{delta} dagen geleden',
-	weekAgo: 'een week geleden',
-	weeksAgo: '{delta} weken geleden',
-	monthAgo: 'een maand geleden',
-	monthsAgo: '{delta} maanden geleden',
-	yearAgo: 'een jaar geleden',
-	yearsAgo: '{delta} jaar geleden',
-
-	lessThanMinuteUntil: 'over minder dan een minuut',
-	minuteUntil: 'over ongeveer een minuut',
-	minutesUntil: 'over {delta} minuten',
-	hourUntil: 'over ongeveer een uur',
-	hoursUntil: 'over {delta} uur',
-	dayUntil: 'over ongeveer een dag',
-	daysUntil: 'over {delta} dagen',
-	weekUntil: 'over een week',
-	weeksUntil: 'over {delta} weken',
-	monthUntil: 'over een maand',
-	monthsUntil: 'over {delta} maanden',
-	yearUntil: 'over een jaar',
-	yearsUntil: 'over {delta} jaar'
-
-});
-
-
-/*
----
-
-name: Locale.nl-NL.Form.Validator
-
-description: Form Validator messages for Dutch.
-
-license: MIT-style license
-
-authors:
-  - Lennart Pilon
-  - Arian Stolwijk
-  - Tim Wienk
-
-requires:
-  - /Locale
-
-provides: [Locale.nl-NL.Form.Validator]
-
-...
-*/
-
-Locale.define('nl-NL', 'FormValidator', {
-
-	required: 'Dit veld is verplicht.',
-	minLength: 'Vul minimaal {minLength} karakters in (je hebt {length} karakters ingevoerd).',
-	maxLength: 'Vul niet meer dan {maxLength} karakters in (je hebt {length} karakters ingevoerd).',
-	integer: 'Vul een getal in. Getallen met decimalen (bijvoorbeeld 1.25) zijn niet toegestaan.',
-	numeric: 'Vul alleen numerieke waarden in (bijvoorbeeld "1" of "1.1" of "-1" of "-1.1").',
-	digits: 'Vul alleen nummers en leestekens in (bijvoorbeeld een telefoonnummer met streepjes is toegestaan).',
-	alpha: 'Vul alleen letters in (a-z). Spaties en andere karakters zijn niet toegestaan.',
-	alphanum: 'Vul alleen letters (a-z) of nummers (0-9) in. Spaties en andere karakters zijn niet toegestaan.',
-	dateSuchAs: 'Vul een geldige datum in, zoals {date}',
-	dateInFormatMDY: 'Vul een geldige datum, in het formaat MM/DD/YYYY (bijvoorbeeld "12/31/1999")',
-	email: 'Vul een geldig e-mailadres in. Bijvoorbeeld "fred@domein.nl".',
-	url: 'Vul een geldige URL in, zoals http://www.example.com.',
-	currencyDollar: 'Vul een geldig $ bedrag in. Bijvoorbeeld $100.00 .',
-	oneRequired: 'Vul iets in bij in ieder geval een van deze velden.',
-	warningPrefix: 'Waarschuwing: ',
-	errorPrefix: 'Fout: ',
-
-	// Form.Validator.Extras
-	noSpace: 'Spaties zijn niet toegestaan in dit veld.',
-	reqChkByNode: 'Er zijn geen items geselecteerd.',
-	requiredChk: 'Dit veld is verplicht.',
-	reqChkByName: 'Selecteer een {label}.',
-	match: 'Dit veld moet overeen komen met het {matchName} veld',
-	startDate: 'de begin datum',
-	endDate: 'de eind datum',
-	currendDate: 'de huidige datum',
-	afterDate: 'De datum moet hetzelfde of na {label} zijn.',
-	beforeDate: 'De datum moet hetzelfde of voor {label} zijn.',
-	startMonth: 'Selecteer een begin maand',
-	sameMonth: 'Deze twee data moeten in dezelfde maand zijn - u moet een van beide aanpassen.',
-	creditcard: 'Het ingevulde creditcardnummer is niet geldig. Controleer het nummer en probeer opnieuw. {length} getallen ingevuld.'
-
-});
-
-
-/*
----
-
-name: Locale.nl-NL.Number
-
-description: Number messages for Dutch.
-
-license: MIT-style license
-
-authors:
-  - Arian Stolwijk
-
-requires:
-  - /Locale
-  - /Locale.EU.Number
-
-provides: [Locale.nl-NL.Number]
-
-...
-*/
-
-Locale.define('nl-NL').inherit('EU', 'Number');
-
-
-
-
-
-/*
----
-
-name: Locale.no-NO.Date
-
-description: Date messages for Norwegian.
-
-license: MIT-style license
-
-authors:
-  - Espen 'Rexxars' Hovlandsdal
-
-requires:
-  - /Locale
-
-provides: [Locale.no-NO.Date]
-
-...
-*/
-
-Locale.define('no-NO', 'Date', {
-
-	// Culture's date order: DD.MM.YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d.%m.%Y',
-	shortTime: '%H:%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	lessThanMinuteAgo: 'kortere enn et minutt siden',
-	minuteAgo: 'omtrent et minutt siden',
-	minutesAgo: '{delta} minutter siden',
-	hourAgo: 'omtrent en time siden',
-	hoursAgo: 'omtrent {delta} timer siden',
-	dayAgo: '{delta} dag siden',
-	daysAgo: '{delta} dager siden'
-
-});
-
-
-/*
----
-
-name: Locale.no-NO.Form.Validator
-
-description: Form Validator messages for Norwegian.
-
-license: MIT-style license
-
-authors:
-  - Espen 'Rexxars' Hovlandsdal
-
-requires:
-  - /Locale
-
-provides: [Locale.no-NO.Form.Validator]
-
-...
-*/
-
-Locale.define('no-NO', 'FormValidator', {
-
-	required: 'Dette feltet er pÃ¥krevd.',
-	minLength: 'Vennligst skriv inn minst {minLength} tegn (du skrev {length} tegn).',
-	maxLength: 'Vennligst skriv inn maksimalt {maxLength} tegn (du skrev {length} tegn).',
-	integer: 'Vennligst skriv inn et tall i dette feltet. Tall med desimaler (for eksempel 1,25) er ikke tillat.',
-	numeric: 'Vennligst skriv inn kun numeriske verdier i dette feltet (for eksempel "1", "1.1", "-1" eller "-1.1").',
-	digits: 'Vennligst bruk kun nummer og skilletegn i dette feltet.',
-	alpha: 'Vennligst bruk kun bokstaver (a-z) i dette feltet. Ingen mellomrom eller andre tegn er tillat.',
-	alphanum: 'Vennligst bruk kun bokstaver (a-z) eller nummer (0-9) i dette feltet. Ingen mellomrom eller andre tegn er tillat.',
-	dateSuchAs: 'Vennligst skriv inn en gyldig dato, som {date}',
-	dateInFormatMDY: 'Vennligst skriv inn en gyldig dato, i formatet MM/DD/YYYY (for eksempel "12/31/1999")',
-	email: 'Vennligst skriv inn en gyldig epost-adresse. For eksempel "espen@domene.no".',
-	url: 'Vennligst skriv inn en gyldig URL, for eksempel http://www.example.com.',
-	currencyDollar: 'Vennligst fyll ut et gyldig $ belÃ¸p. For eksempel $100.00 .',
-	oneRequired: 'Vennligst fyll ut noe i minst ett av disse feltene.',
-	errorPrefix: 'Feil: ',
-	warningPrefix: 'Advarsel: '
-
-});
-
-
-/*
----
-
-name: Locale.pl-PL.Date
-
-description: Date messages for Polish.
-
-license: MIT-style license
-
-authors:
-  - Oskar Krawczyk
-
-requires:
-  - /Locale
-
-provides: [Locale.pl-PL.Date]
-
-...
-*/
-
-Locale.define('pl-PL', 'Date', {
-
-	months: ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'],
-	months_abbr: ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'],
-	days: ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'],
-	days_abbr: ['niedz.', 'pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.'],
-
-	// Culture's date order: YYYY-MM-DD
-	dateOrder: ['year', 'month', 'date'],
-	shortDate: '%Y-%m-%d',
-	shortTime: '%H:%M',
-	AM: 'nad ranem',
-	PM: 'po południu',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: function(dayOfMonth){
-		return (dayOfMonth > 3 && dayOfMonth < 21) ? 'ty' : ['ty', 'szy', 'gi', 'ci', 'ty'][Math.min(dayOfMonth % 10, 4)];
-	},
-
-	lessThanMinuteAgo: 'mniej niż minute temu',
-	minuteAgo: 'około minutę temu',
-	minutesAgo: '{delta} minut temu',
-	hourAgo: 'około godzinę temu',
-	hoursAgo: 'około {delta} godzin temu',
-	dayAgo: 'Wczoraj',
-	daysAgo: '{delta} dni temu',
-
-	lessThanMinuteUntil: 'za niecałą minutę',
-	minuteUntil: 'za około minutę',
-	minutesUntil: 'za {delta} minut',
-	hourUntil: 'za około godzinę',
-	hoursUntil: 'za około {delta} godzin',
-	dayUntil: 'za 1 dzień',
-	daysUntil: 'za {delta} dni'
-
-});
-
-
-/*
----
-
-name: Locale.pl-PL.Form.Validator
-
-description: Form Validator messages for Polish.
-
-license: MIT-style license
-
-authors:
-  - Oskar Krawczyk
-
-requires:
-  - /Locale
-
-provides: [Locale.pl-PL.Form.Validator]
-
-...
-*/
-
-Locale.define('pl-PL', 'FormValidator', {
-
-	required: 'To pole jest wymagane.',
-	minLength: 'Wymagane jest przynajmniej {minLength} znaków (wpisanych zostało tylko {length}).',
-	maxLength: 'Dozwolone jest nie więcej niż {maxLength} znaków (wpisanych zostało {length})',
-	integer: 'To pole wymaga liczb całych. Liczby dziesiętne (np. 1.25) są niedozwolone.',
-	numeric: 'Prosimy używać tylko numerycznych wartości w tym polu (np. "1", "1.1", "-1" lub "-1.1").',
-	digits: 'Prosimy używać liczb oraz zankow punktuacyjnych w typ polu (dla przykładu, przy numerze telefonu myślniki i kropki są dozwolone).',
-	alpha: 'Prosimy używać tylko liter (a-z) w tym polu. Spacje oraz inne znaki są niedozwolone.',
-	alphanum: 'Prosimy używać tylko liter (a-z) lub liczb (0-9) w tym polu. Spacje oraz inne znaki są niedozwolone.',
-	dateSuchAs: 'Prosimy podać prawidłową datę w formacie: {date}',
-	dateInFormatMDY: 'Prosimy podać poprawną date w formacie DD.MM.RRRR (i.e. "12.01.2009")',
-	email: 'Prosimy podać prawidłowy adres e-mail, np. "jan@domena.pl".',
-	url: 'Prosimy podać prawidłowy adres URL, np. http://www.example.com.',
-	currencyDollar: 'Prosimy podać prawidłową sumę w PLN. Dla przykładu: 100.00 PLN.',
-	oneRequired: 'Prosimy wypełnić chociaż jedno z pól.',
-	errorPrefix: 'Błąd: ',
-	warningPrefix: 'Uwaga: ',
-
-	// Form.Validator.Extras
-	noSpace: 'W tym polu nie mogą znajdować się spacje.',
-	reqChkByNode: 'Brak zaznaczonych elementów.',
-	requiredChk: 'To pole jest wymagane.',
-	reqChkByName: 'Prosimy wybrać z {label}.',
-	match: 'To pole musi być takie samo jak {matchName}',
-	startDate: 'data początkowa',
-	endDate: 'data końcowa',
-	currendDate: 'aktualna data',
-	afterDate: 'Podana data poinna być taka sama lub po {label}.',
-	beforeDate: 'Podana data poinna być taka sama lub przed {label}.',
-	startMonth: 'Prosimy wybrać początkowy miesiąc.',
-	sameMonth: 'Te dwie daty muszą być w zakresie tego samego miesiąca - wymagana jest zmiana któregoś z pól.'
-
-});
-
-
-/*
----
-
-name: Locale.pt-PT.Date
-
-description: Date messages for Portuguese.
-
-license: MIT-style license
-
-authors:
-  - Fabio Miranda Costa
-
-requires:
-  - /Locale
-
-provides: [Locale.pt-PT.Date]
-
-...
-*/
-
-Locale.define('pt-PT', 'Date', {
-
-	months: ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'],
-	months_abbr: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
-	days: ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'],
-	days_abbr: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'],
-
-	// Culture's date order: DD-MM-YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d-%m-%Y',
-	shortTime: '%H:%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: 'º',
-
-	lessThanMinuteAgo: 'há menos de um minuto',
-	minuteAgo: 'há cerca de um minuto',
-	minutesAgo: 'há {delta} minutos',
-	hourAgo: 'há cerca de uma hora',
-	hoursAgo: 'há cerca de {delta} horas',
-	dayAgo: 'há um dia',
-	daysAgo: 'há {delta} dias',
-	weekAgo: 'há uma semana',
-	weeksAgo: 'há {delta} semanas',
-	monthAgo: 'há um mês',
-	monthsAgo: 'há {delta} meses',
-	yearAgo: 'há um ano',
-	yearsAgo: 'há {delta} anos',
-
-	lessThanMinuteUntil: 'em menos de um minuto',
-	minuteUntil: 'em um minuto',
-	minutesUntil: 'em {delta} minutos',
-	hourUntil: 'em uma hora',
-	hoursUntil: 'em {delta} horas',
-	dayUntil: 'em um dia',
-	daysUntil: 'em {delta} dias',
-	weekUntil: 'em uma semana',
-	weeksUntil: 'em {delta} semanas',
-	monthUntil: 'em um mês',
-	monthsUntil: 'em {delta} meses',
-	yearUntil: 'em um ano',
-	yearsUntil: 'em {delta} anos'
-
-});
-
-
-/*
----
-
-name: Locale.pt-BR.Date
-
-description: Date messages for Portuguese (Brazil).
-
-license: MIT-style license
-
-authors:
-  - Fabio Miranda Costa
-
-requires:
-  - /Locale
-  - /Locale.pt-PT.Date
-
-provides: [Locale.pt-BR.Date]
-
-...
-*/
-
-Locale.define('pt-BR', 'Date', {
-
-	// Culture's date order: DD/MM/YYYY
-	shortDate: '%d/%m/%Y'
-
-}).inherit('pt-PT', 'Date');
-
-
-/*
----
-
-name: Locale.pt-BR.Form.Validator
-
-description: Form Validator messages for Portuguese (Brazil).
-
-license: MIT-style license
-
-authors:
-  - Fábio Miranda Costa
-
-requires:
-  - /Locale
-
-provides: [Locale.pt-BR.Form.Validator]
-
-...
-*/
-
-Locale.define('pt-BR', 'FormValidator', {
-
-	required: 'Este campo é obrigatório.',
-	minLength: 'Digite pelo menos {minLength} caracteres (tamanho atual: {length}).',
-	maxLength: 'Não digite mais de {maxLength} caracteres (tamanho atual: {length}).',
-	integer: 'Por favor digite apenas um número inteiro neste campo. Não são permitidos números decimais (por exemplo, 1,25).',
-	numeric: 'Por favor digite apenas valores numéricos neste campo (por exemplo, "1" ou "1.1" ou "-1" ou "-1,1").',
-	digits: 'Por favor use apenas números e pontuação neste campo (por exemplo, um número de telefone com traços ou pontos é permitido).',
-	alpha: 'Por favor use somente letras (a-z). Espaço e outros caracteres não são permitidos.',
-	alphanum: 'Use somente letras (a-z) ou números (0-9) neste campo. Espaço e outros caracteres não são permitidos.',
-	dateSuchAs: 'Digite uma data válida, como {date}',
-	dateInFormatMDY: 'Digite uma data válida, como DD/MM/YYYY (por exemplo, "31/12/1999")',
-	email: 'Digite um endereço de email válido. Por exemplo "nome@dominio.com".',
-	url: 'Digite uma URL válida. Exemplo: http://www.example.com.',
-	currencyDollar: 'Digite um valor em dinheiro válido. Exemplo: R$100,00 .',
-	oneRequired: 'Digite algo para pelo menos um desses campos.',
-	errorPrefix: 'Erro: ',
-	warningPrefix: 'Aviso: ',
-
-	// Form.Validator.Extras
-	noSpace: 'Não é possível digitar espaços neste campo.',
-	reqChkByNode: 'Não foi selecionado nenhum item.',
-	requiredChk: 'Este campo é obrigatório.',
-	reqChkByName: 'Por favor digite um {label}.',
-	match: 'Este campo deve ser igual ao campo {matchName}.',
-	startDate: 'a data inicial',
-	endDate: 'a data final',
-	currendDate: 'a data atual',
-	afterDate: 'A data deve ser igual ou posterior a {label}.',
-	beforeDate: 'A data deve ser igual ou anterior a {label}.',
-	startMonth: 'Por favor selecione uma data inicial.',
-	sameMonth: 'Estas duas datas devem ter o mesmo mês - você deve modificar uma das duas.',
-	creditcard: 'O número do cartão de crédito informado é inválido. Por favor verifique o valor e tente novamente. {length} números informados.'
-
-});
-
-
-/*
----
-
-name: Locale.pt-PT.Form.Validator
-
-description: Form Validator messages for Portuguese.
-
-license: MIT-style license
-
-authors:
-  - Miquel Hudin
-
-requires:
-  - /Locale
-
-provides: [Locale.pt-PT.Form.Validator]
-
-...
-*/
-
-Locale.define('pt-PT', 'FormValidator', {
-
-	required: 'Este campo é necessário.',
-	minLength: 'Digite pelo menos{minLength} caracteres (comprimento {length} caracteres).',
-	maxLength: 'Não insira mais de {maxLength} caracteres (comprimento {length} caracteres).',
-	integer: 'Digite um número inteiro neste domínio. Com números decimais (por exemplo, 1,25), não são permitidas.',
-	numeric: 'Digite apenas valores numéricos neste domínio (p.ex., "1" ou "1.1" ou "-1" ou "-1,1").',
-	digits: 'Por favor, use números e pontuação apenas neste campo (p.ex., um número de telefone com traços ou pontos é permitida).',
-	alpha: 'Por favor use somente letras (a-z), com nesta área. Não utilize espaços nem outros caracteres são permitidos.',
-	alphanum: 'Use somente letras (a-z) ou números (0-9) neste campo. Não utilize espaços nem outros caracteres são permitidos.',
-	dateSuchAs: 'Digite uma data válida, como {date}',
-	dateInFormatMDY: 'Digite uma data válida, como DD/MM/YYYY (p.ex. "31/12/1999")',
-	email: 'Digite um endereço de email válido. Por exemplo "fred@domain.com".',
-	url: 'Digite uma URL válida, como http://www.example.com.',
-	currencyDollar: 'Digite um valor válido $. Por exemplo $ 100,00. ',
-	oneRequired: 'Digite algo para pelo menos um desses insumos.',
-	errorPrefix: 'Erro: ',
-	warningPrefix: 'Aviso: '
-
-});
-
-
-/*
----
-
-name: Locale.ru-RU-unicode.Date
-
-description: Date messages for Russian (utf-8).
-
-license: MIT-style license
-
-authors:
-  - Evstigneev Pavel
-  - Kuryanovich Egor
-
-requires:
-  - /Locale
-
-provides: [Locale.ru-RU.Date]
-
-...
-*/
-
-(function(){
-
-// Russian language pluralization rules, taken from CLDR project, http://unicode.org/cldr/
-// one -> n mod 10 is 1 and n mod 100 is not 11;
-// few -> n mod 10 in 2..4 and n mod 100 not in 12..14;
-// many -> n mod 10 is 0 or n mod 10 in 5..9 or n mod 100 in 11..14;
-// other -> everything else (example 3.14)
-var pluralize = function (n, one, few, many, other){
-	var modulo10 = n % 10,
-		modulo100 = n % 100;
-
-	if (modulo10 == 1 && modulo100 != 11){
-		return one;
-	} else if ((modulo10 == 2 || modulo10 == 3 || modulo10 == 4) && !(modulo100 == 12 || modulo100 == 13 || modulo100 == 14)){
-		return few;
-	} else if (modulo10 == 0 || (modulo10 == 5 || modulo10 == 6 || modulo10 == 7 || modulo10 == 8 || modulo10 == 9) || (modulo100 == 11 || modulo100 == 12 || modulo100 == 13 || modulo100 == 14)){
-		return many;
-	} else {
-		return other;
-	}
-};
-
-Locale.define('ru-RU', 'Date', {
-
-	months: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
-	months_abbr: ['янв', 'февр', 'март', 'апр', 'май','июнь','июль','авг','сент','окт','нояб','дек'],
-	days: ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'],
-	days_abbr: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
-
-	// Culture's date order: DD.MM.YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d.%m.%Y',
-	shortTime: '%H:%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '',
-
-	lessThanMinuteAgo: 'меньше минуты назад',
-	minuteAgo: 'минуту назад',
-	minutesAgo: function(delta){ return '{delta} ' + pluralize(delta, 'минуту', 'минуты', 'минут') + ' назад'; },
-	hourAgo: 'час назад',
-	hoursAgo: function(delta){ return '{delta} ' + pluralize(delta, 'час', 'часа', 'часов') + ' назад'; },
-	dayAgo: 'вчера',
-	daysAgo: function(delta){ return '{delta} ' + pluralize(delta, 'день', 'дня', 'дней') + ' назад'; },
-	weekAgo: 'неделю назад',
-	weeksAgo: function(delta){ return '{delta} ' + pluralize(delta, 'неделя', 'недели', 'недель') + ' назад'; },
-	monthAgo: 'месяц назад',
-	monthsAgo: function(delta){ return '{delta} ' + pluralize(delta, 'месяц', 'месяца', 'месецев') + ' назад'; },
-	yearAgo: 'год назад',
-	yearsAgo: function(delta){ return '{delta} ' + pluralize(delta, 'год', 'года', 'лет') + ' назад'; },
-
-	lessThanMinuteUntil: 'меньше чем через минуту',
-	minuteUntil: 'через минуту',
-	minutesUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'час', 'часа', 'часов') + ''; },
-	hourUntil: 'через час',
-	hoursUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'час', 'часа', 'часов') + ''; },
-	dayUntil: 'завтра',
-	daysUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'день', 'дня', 'дней') + ''; },
-	weekUntil: 'через неделю',
-	weeksUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'неделю', 'недели', 'недель') + ''; },
-	monthUntil: 'через месяц',
-	monthsUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'месяц', 'месяца', 'месецев') + ''; },
-	yearUntil: 'через',
-	yearsUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'год', 'года', 'лет') + ''; }
-
-});
-
-
-
-})();
-
-
-/*
----
-
-name: Locale.ru-RU-unicode.Form.Validator
-
-description: Form Validator messages for Russian (utf-8).
-
-license: MIT-style license
-
-authors:
-  - Chernodarov Egor
-
-requires:
-  - /Locale
-
-provides: [Locale.ru-RU.Form.Validator]
-
-...
-*/
-
-Locale.define('ru-RU', 'FormValidator', {
-
-	required: 'Это поле обязательно к заполнению.',
-	minLength: 'Пожалуйста, введите хотя бы {minLength} символов (Вы ввели {length}).',
-	maxLength: 'Пожалуйста, введите не больше {maxLength} символов (Вы ввели {length}).',
-	integer: 'Пожалуйста, введите в это поле число. Дробные числа (например 1.25) тут не разрешены.',
-	numeric: 'Пожалуйста, введите в это поле число (например "1" или "1.1", или "-1", или "-1.1").',
-	digits: 'В этом поле Вы можете использовать только цифры и знаки пунктуации (например, телефонный номер со знаками дефиса или с точками).',
-	alpha: 'В этом поле можно использовать только латинские буквы (a-z). Пробелы и другие символы запрещены.',
-	alphanum: 'В этом поле можно использовать только латинские буквы (a-z) и цифры (0-9). Пробелы и другие символы запрещены.',
-	dateSuchAs: 'Пожалуйста, введите корректную дату {date}',
-	dateInFormatMDY: 'Пожалуйста, введите дату в формате ММ/ДД/ГГГГ (например "12/31/1999")',
-	email: 'Пожалуйста, введите корректный емейл-адрес. Для примера "fred@domain.com".',
-	url: 'Пожалуйста, введите правильную ссылку вида http://www.example.com.',
-	currencyDollar: 'Пожалуйста, введите сумму в долларах. Например: $100.00 .',
-	oneRequired: 'Пожалуйста, выберите хоть что-нибудь в одном из этих полей.',
-	errorPrefix: 'Ошибка: ',
-	warningPrefix: 'Внимание: '
-
-});
-
-
-
-
-/*
----
-
-name: Locale.si-SI.Date
-
-description: Date messages for Slovenian.
-
-license: MIT-style license
-
-authors:
-  - Radovan Lozej
-
-requires:
-  - /Locale
-
-provides: [Locale.si-SI.Date]
-
-...
-*/
-
-(function(){
-
-var pluralize = function(n, one, two, three, other){
-	return (n >= 1 && n <= 3) ? arguments[n] : other;
-};
-
-Locale.define('si-SI', 'Date', {
-
-	months: ['januar', 'februar', 'marec', 'april', 'maj', 'junij', 'julij', 'avgust', 'september', 'oktober', 'november', 'december'],
-	months_abbr: ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'avg', 'sep', 'okt', 'nov', 'dec'],
-	days: ['nedelja', 'ponedeljek', 'torek', 'sreda', 'četrtek', 'petek', 'sobota'],
-	days_abbr: ['ned', 'pon', 'tor', 'sre', 'čet', 'pet', 'sob'],
-
-	// Culture's date order: DD.MM.YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d.%m.%Y',
-	shortTime: '%H.%M',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '.',
-
-	lessThanMinuteAgo: 'manj kot minuto nazaj',
-	minuteAgo: 'minuto nazaj',
-	minutesAgo: function(delta){ return '{delta} ' + pluralize(delta, 'minuto', 'minuti', 'minute', 'minut') + ' nazaj'; },
-	hourAgo: 'uro nazaj',
-	hoursAgo: function(delta){ return '{delta} ' + pluralize(delta, 'uro', 'uri', 'ure', 'ur') + ' nazaj'; },
-	dayAgo: 'dan nazaj',
-	daysAgo: function(delta){ return '{delta} ' + pluralize(delta, 'dan', 'dneva', 'dni', 'dni') + ' nazaj'; },
-	weekAgo: 'teden nazaj',
-	weeksAgo: function(delta){ return '{delta} ' + pluralize(delta, 'teden', 'tedna', 'tedne', 'tednov') + ' nazaj'; },
-	monthAgo: 'mesec nazaj',
-	monthsAgo: function(delta){ return '{delta} ' + pluralize(delta, 'mesec', 'meseca', 'mesece', 'mesecov') + ' nazaj'; },
-	yearthAgo: 'leto nazaj',
-	yearsAgo: function(delta){ return '{delta} ' + pluralize(delta, 'leto', 'leti', 'leta', 'let') + ' nazaj'; },
-
-	lessThanMinuteUntil: 'še manj kot minuto',
-	minuteUntil: 'še minuta',
-	minutesUntil: function(delta){ return 'še {delta} ' + pluralize(delta, 'minuta', 'minuti', 'minute', 'minut'); },
-	hourUntil: 'še ura',
-	hoursUntil: function(delta){ return 'še {delta} ' + pluralize(delta, 'ura', 'uri', 'ure', 'ur'); },
-	dayUntil: 'še dan',
-	daysUntil: function(delta){ return 'še {delta} ' + pluralize(delta, 'dan', 'dneva', 'dnevi', 'dni'); },
-	weekUntil: 'še tedn',
-	weeksUntil: function(delta){ return 'še {delta} ' + pluralize(delta, 'teden', 'tedna', 'tedni', 'tednov'); },
-	monthUntil: 'še mesec',
-	monthsUntil: function(delta){ return 'še {delta} ' + pluralize(delta, 'mesec', 'meseca', 'meseci', 'mesecov'); },
-	yearUntil: 'še leto',
-	yearsUntil: function(delta){ return 'še {delta} ' + pluralize(delta, 'leto', 'leti', 'leta', 'let'); }
-
-});
-
-})();
-
-
-/*
----
-
-name: Locale.si-SI.Form.Validator
-
-description: Form Validator messages for Slovenian.
-
-license: MIT-style license
-
-authors:
-  - Radovan Lozej
-
-requires:
-  - /Locale
-
-provides: [Locale.si-SI.Form.Validator]
-
-...
-*/
-
-Locale.define('si-SI', 'FormValidator', {
-
-	required: 'To polje je obvezno',
-	minLength: 'Prosim, vnesite vsaj {minLength} znakov (vnesli ste {length} znakov).',
-	maxLength: 'Prosim, ne vnesite več kot {maxLength} znakov (vnesli ste {length} znakov).',
-	integer: 'Prosim, vnesite celo število. Decimalna števila (kot 1,25) niso dovoljena.',
-	numeric: 'Prosim, vnesite samo numerične vrednosti (kot "1" ali "1.1" ali "-1" ali "-1.1").',
-	digits: 'Prosim, uporabite številke in ločila le na tem polju (na primer, dovoljena je telefonska številka z pomišlaji ali pikami).',
-	alpha: 'Prosim, uporabite le črke v tem plju. Presledki in drugi znaki niso dovoljeni.',
-	alphanum: 'Prosim, uporabite samo črke ali številke v tem polju. Presledki in drugi znaki niso dovoljeni.',
-	dateSuchAs: 'Prosim, vnesite pravilen datum kot {date}',
-	dateInFormatMDY: 'Prosim, vnesite pravilen datum kot MM.DD.YYYY (primer "12.31.1999")',
-	email: 'Prosim, vnesite pravilen email naslov. Na primer "fred@domain.com".',
-	url: 'Prosim, vnesite pravilen URL kot http://www.example.com.',
-	currencyDollar: 'Prosim, vnesit epravilno vrednost €. Primer 100,00€ .',
-	oneRequired: 'Prosimo, vnesite nekaj za vsaj eno izmed teh polj.',
-	errorPrefix: 'Napaka: ',
-	warningPrefix: 'Opozorilo: ',
-
-	// Form.Validator.Extras
-	noSpace: 'To vnosno polje ne dopušča presledkov.',
-	reqChkByNode: 'Nič niste izbrali.',
-	requiredChk: 'To polje je obvezno',
-	reqChkByName: 'Prosim, izberite {label}.',
-	match: 'To polje se mora ujemati z poljem {matchName}',
-	startDate: 'datum začetka',
-	endDate: 'datum konca',
-	currendDate: 'trenuten datum',
-	afterDate: 'Datum bi moral biti isti ali po {label}.',
-	beforeDate: 'Datum bi moral biti isti ali pred {label}.',
-	startMonth: 'Prosim, vnesite začetni datum',
-	sameMonth: 'Ta dva datuma morata biti v istem mesecu - premeniti morate eno ali drugo.',
-	creditcard: 'Številka kreditne kartice ni pravilna. Preverite številko ali poskusite še enkrat. Vnešenih {length} znakov.'
-
-});
-
-
-/*
----
-
-name: Locale.sv-SE.Date
-
-description: Date messages for Swedish.
-
-license: MIT-style license
-
-authors:
-  - Martin Lundgren
-
-requires:
-  - /Locale
-
-provides: [Locale.sv-SE.Date]
-
-...
-*/
-
-Locale.define('sv-SE', 'Date', {
-
-	months: ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 'juli', 'augusti', 'september', 'oktober', 'november', 'december'],
-	months_abbr: ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'],
-	days: ['söndag', 'måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag'],
-	days_abbr: ['sön', 'mån', 'tis', 'ons', 'tor', 'fre', 'lör'],
-
-	// Culture's date order: YYYY-MM-DD
-	dateOrder: ['year', 'month', 'date'],
-	shortDate: '%Y-%m-%d',
-	shortTime: '%H:%M',
-	AM: '',
-	PM: '',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '',
-
-	lessThanMinuteAgo: 'mindre än en minut sedan',
-	minuteAgo: 'ungefär en minut sedan',
-	minutesAgo: '{delta} minuter sedan',
-	hourAgo: 'ungefär en timme sedan',
-	hoursAgo: 'ungefär {delta} timmar sedan',
-	dayAgo: '1 dag sedan',
-	daysAgo: '{delta} dagar sedan',
-
-	lessThanMinuteUntil: 'mindre än en minut sedan',
-	minuteUntil: 'ungefär en minut sedan',
-	minutesUntil: '{delta} minuter sedan',
-	hourUntil: 'ungefär en timme sedan',
-	hoursUntil: 'ungefär {delta} timmar sedan',
-	dayUntil: '1 dag sedan',
-	daysUntil: '{delta} dagar sedan'
-
-});
-
-
-/*
----
-
-name: Locale.sv-SE.Form.Validator
-
-description: Form Validator messages for Swedish.
-
-license: MIT-style license
-
-authors:
-  - Martin Lundgren
-
-requires:
-  - /Locale
-
-provides: [Locale.sv-SE.Form.Validator]
-
-...
-*/
-
-Locale.define('sv-SE', 'FormValidator', {
-
-	required: 'Fältet är obligatoriskt.',
-	minLength: 'Ange minst {minLength} tecken (du angav {length} tecken).',
-	maxLength: 'Ange högst {maxLength} tecken (du angav {length} tecken). ',
-	integer: 'Ange ett heltal i fältet. Tal med decimaler (t.ex. 1,25) är inte tillåtna.',
-	numeric: 'Ange endast numeriska värden i detta fält (t.ex. "1" eller "1.1" eller "-1" eller "-1,1").',
-	digits: 'Använd endast siffror och skiljetecken i detta fält (till exempel ett telefonnummer med bindestreck tillåtet).',
-	alpha: 'Använd endast bokstäver (a-ö) i detta fält. Inga mellanslag eller andra tecken är tillåtna.',
-	alphanum: 'Använd endast bokstäver (a-ö) och siffror (0-9) i detta fält. Inga mellanslag eller andra tecken är tillåtna.',
-	dateSuchAs: 'Ange ett giltigt datum som t.ex. {date}',
-	dateInFormatMDY: 'Ange ett giltigt datum som t.ex. YYYY-MM-DD (i.e. "1999-12-31")',
-	email: 'Ange en giltig e-postadress. Till exempel "erik@domain.com".',
-	url: 'Ange en giltig webbadress som http://www.example.com.',
-	currencyDollar: 'Ange en giltig belopp. Exempelvis 100,00.',
-	oneRequired: 'Vänligen ange minst ett av dessa alternativ.',
-	errorPrefix: 'Fel: ',
-	warningPrefix: 'Varning: ',
-
-	// Form.Validator.Extras
-	noSpace: 'Det får inte finnas några mellanslag i detta fält.',
-	reqChkByNode: 'Inga objekt är valda.',
-	requiredChk: 'Detta är ett obligatoriskt fält.',
-	reqChkByName: 'Välj en {label}.',
-	match: 'Detta fält måste matcha {matchName}',
-	startDate: 'startdatumet',
-	endDate: 'slutdatum',
-	currendDate: 'dagens datum',
-	afterDate: 'Datumet bör vara samma eller senare än {label}.',
-	beforeDate: 'Datumet bör vara samma eller tidigare än {label}.',
-	startMonth: 'Välj en start månad',
-	sameMonth: 'Dessa två datum måste vara i samma månad - du måste ändra det ena eller det andra.'
-
-});
-
-
-/*
----
-
-name: Locale.uk-UA.Date
-
-description: Date messages for Ukrainian (utf-8).
-
-license: MIT-style license
-
-authors:
-  - Slik
-
-requires:
-  - /Locale
-
-provides: [Locale.uk-UA.Date]
-
-...
-*/
-
-(function(){
-
-var pluralize = function(n, one, few, many, other){
-	var d = (n / 10).toInt(),
-		z = n % 10,
-		s = (n / 100).toInt();
-
-	if (d == 1 && n > 10) return many;
-	if (z == 1) return one;
-	if (z > 0 && z < 5) return few;
-	return many;
-};
-
-Locale.define('uk-UA', 'Date', {
-
-	months: ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень', 'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'],
-	months_abbr: ['Січ', 'Лют', 'Бер', 'Квіт', 'Трав', 'Черв', 'Лип', 'Серп', 'Вер', 'Жовт', 'Лист', 'Груд' ],
-	days: ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', "П'ятниця", 'Субота'],
-	days_abbr: ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
-
-	// Culture's date order: DD/MM/YYYY
-	dateOrder: ['date', 'month', 'year'],
-	shortDate: '%d/%m/%Y',
-	shortTime: '%H:%M',
-	AM: 'до полудня',
-	PM: 'по полудню',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '',
-
-	lessThanMinuteAgo: 'меньше хвилини тому',
-	minuteAgo: 'хвилину тому',
-	minutesAgo: function(delta){ return '{delta} ' + pluralize(delta, 'хвилину', 'хвилини', 'хвилин') + ' тому'; },
-	hourAgo: 'годину тому',
-	hoursAgo: function(delta){ return '{delta} ' + pluralize(delta, 'годину', 'години', 'годин') + ' тому'; },
-	dayAgo: 'вчора',
-	daysAgo: function(delta){ return '{delta} ' + pluralize(delta, 'день', 'дня', 'днів') + ' тому'; },
-	weekAgo: 'тиждень тому',
-	weeksAgo: function(delta){ return '{delta} ' + pluralize(delta, 'тиждень', 'тижні', 'тижнів') + ' тому'; },
-	monthAgo: 'місяць тому',
-	monthsAgo: function(delta){ return '{delta} ' + pluralize(delta, 'місяць', 'місяці', 'місяців') + ' тому'; },
-	yearAgo: 'рік тому',
-	yearsAgo: function(delta){ return '{delta} ' + pluralize(delta, 'рік', 'роки', 'років') + ' тому'; },
-
-	lessThanMinuteUntil: 'за мить',
-	minuteUntil: 'через хвилину',
-	minutesUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'хвилину', 'хвилини', 'хвилин'); },
-	hourUntil: 'через годину',
-	hoursUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'годину', 'години', 'годин'); },
-	dayUntil: 'завтра',
-	daysUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'день', 'дня', 'днів'); },
-	weekUntil: 'через тиждень',
-	weeksUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'тиждень', 'тижні', 'тижнів'); },
-	monthUntil: 'через місяць',
-	monthesUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'місяць', 'місяці', 'місяців'); },
-	yearUntil: 'через рік',
-	yearsUntil: function(delta){ return 'через {delta} ' + pluralize(delta, 'рік', 'роки', 'років'); }
-
-});
-
-})();
-
-
-/*
----
-
-name: Locale.uk-UA.Form.Validator
-
-description: Form Validator messages for Ukrainian (utf-8).
-
-license: MIT-style license
-
-authors:
-  - Slik
-
-requires:
-  - /Locale
-
-provides: [Locale.uk-UA.Form.Validator]
-
-...
-*/
-
-Locale.define('uk-UA', 'FormValidator', {
-
-	required: 'Це поле повинне бути заповненим.',
-	minLength: 'Введіть хоча б {minLength} символів (Ви ввели {length}).',
-	maxLength: 'Кількість символів не може бути більше {maxLength} (Ви ввели {length}).',
-	integer: 'Введіть в це поле число. Дробові числа (наприклад 1.25) не дозволені.',
-	numeric: 'Введіть в це поле число (наприклад "1" або "1.1", або "-1", або "-1.1").',
-	digits: 'В цьому полі ви можете використовувати лише цифри і знаки пунктіації (наприклад, телефонний номер з знаками дефізу або з крапками).',
-	alpha: 'В цьому полі можна використовувати лише латинські літери (a-z). Пробіли і інші символи заборонені.',
-	alphanum: 'В цьому полі можна використовувати лише латинські літери (a-z) і цифри (0-9). Пробіли і інші символи заборонені.',
-	dateSuchAs: 'Введіть коректну дату {date}.',
-	dateInFormatMDY: 'Введіть дату в форматі ММ/ДД/РРРР (наприклад "12/31/2009").',
-	email: 'Введіть коректну адресу електронної пошти (наприклад "name@domain.com").',
-	url: 'Введіть коректне інтернет-посилання (наприклад http://www.example.com).',
-	currencyDollar: 'Введіть суму в доларах (наприклад "$100.00").',
-	oneRequired: 'Заповніть одне з полів.',
-	errorPrefix: 'Помилка: ',
-	warningPrefix: 'Увага: ',
-
-	noSpace: 'Пробіли заборонені.',
-	reqChkByNode: 'Не відмічено жодного варіанту.',
-	requiredChk: 'Це поле повинне бути віміченим.',
-	reqChkByName: 'Будь ласка, відмітьте {label}.',
-	match: 'Це поле повинно відповідати {matchName}',
-	startDate: 'початкова дата',
-	endDate: 'кінцева дата',
-	currendDate: 'сьогоднішня дата',
-	afterDate: 'Ця дата повинна бути такою ж, або пізнішою за {label}.',
-	beforeDate: 'Ця дата повинна бути такою ж, або ранішою за {label}.',
-	startMonth: 'Будь ласка, виберіть початковий місяць',
-	sameMonth: 'Ці дати повинні відноситись одного і того ж місяця. Будь ласка, змініть одну з них.',
-	creditcard: 'Номер кредитної карти введений неправильно. Будь ласка, перевірте його. Введено {length} символів.'
-
-});
-
-
-/*
----
-
-name: Locale.zh-CH.Date
-
-description: Date messages for Chinese (simplified and traditional).
-
-license: MIT-style license
-
-authors:
-  - YMind Chan
-
-requires:
-  - /Locale
-
-provides: [Locale.zh-CH.Date]
-
-...
-*/
-
-// Simplified Chinese
-Locale.define('zh-CHS', 'Date', {
-
-	months: ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'],
-	months_abbr: ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'],
-	days: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'],
-	days_abbr: ['日', '一', '二', '三', '四', '五', '六'],
-
-	// Culture's date order: YYYY-MM-DD
-	dateOrder: ['year', 'month', 'date'],
-	shortDate: '%Y-%m-%d',
-	shortTime: '%I:%M%p',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '',
-
-	lessThanMinuteAgo: '不到1分钟前',
-	minuteAgo: '大约1分钟前',
-	minutesAgo: '{delta}分钟之前',
-	hourAgo: '大约1小时前',
-	hoursAgo: '大约{delta}小时前',
-	dayAgo: '1天前',
-	daysAgo: '{delta}天前',
-	weekAgo: '1星期前',
-	weeksAgo: '{delta}星期前',
-	monthAgo: '1个月前',
-	monthsAgo: '{delta}个月前',
-	yearAgo: '1年前',
-	yearsAgo: '{delta}年前',
-
-	lessThanMinuteUntil: '从现在开始不到1分钟',
-	minuteUntil: '从现在开始約1分钟',
-	minutesUntil: '从现在开始约{delta}分钟',
-	hourUntil: '从现在开始1小时',
-	hoursUntil: '从现在开始约{delta}小时',
-	dayUntil: '从现在开始1天',
-	daysUntil: '从现在开始{delta}天',
-	weekUntil: '从现在开始1星期',
-	weeksUntil: '从现在开始{delta}星期',
-	monthUntil: '从现在开始一个月',
-	monthsUntil: '从现在开始{delta}个月',
-	yearUntil: '从现在开始1年',
-	yearsUntil: '从现在开始{delta}年'
-
-});
-
-// Traditional Chinese
-Locale.define('zh-CHT', 'Date', {
-
-	months: ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'],
-	months_abbr: ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'],
-	days: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'],
-	days_abbr: ['日', '一', '二', '三', '四', '五', '六'],
-
-	// Culture's date order: YYYY-MM-DD
-	dateOrder: ['year', 'month', 'date'],
-	shortDate: '%Y-%m-%d',
-	shortTime: '%I:%M%p',
-	AM: 'AM',
-	PM: 'PM',
-	firstDayOfWeek: 1,
-
-	// Date.Extras
-	ordinal: '',
-
-	lessThanMinuteAgo: '不到1分鐘前',
-	minuteAgo: '大約1分鐘前',
-	minutesAgo: '{delta}分鐘之前',
-	hourAgo: '大約1小時前',
-	hoursAgo: '大約{delta}小時前',
-	dayAgo: '1天前',
-	daysAgo: '{delta}天前',
-	weekAgo: '1星期前',
-	weeksAgo: '{delta}星期前',
-	monthAgo: '1个月前',
-	monthsAgo: '{delta}个月前',
-	yearAgo: '1年前',
-	yearsAgo: '{delta}年前',
-
-	lessThanMinuteUntil: '從現在開始不到1分鐘',
-	minuteUntil: '從現在開始約1分鐘',
-	minutesUntil: '從現在開始約{delta}分鐘',
-	hourUntil: '從現在開始1小時',
-	hoursUntil: '從現在開始約{delta}小時',
-	dayUntil: '從現在開始1天',
-	daysUntil: '從現在開始{delta}天',
-	weekUntil: '從現在開始1星期',
-	weeksUntil: '從現在開始{delta}星期',
-	monthUntil: '從現在開始一個月',
-	monthsUntil: '從現在開始{delta}個月',
-	yearUntil: '從現在開始1年',
-	yearsUntil: '從現在開始{delta}年'
-
-});
-
-
-/*
----
-
-name: Locale.zh-CH.Form.Validator
-
-description: Form Validator messages for Chinese (simplified and traditional).
-
-license: MIT-style license
-
-authors:
-  - YMind Chan
-
-requires:
-  - /Locale
-  - /Form.Validator
-
-provides: [Form.zh-CH.Form.Validator, Form.Validator.CurrencyYuanValidator]
-
-...
-*/
-
-// Simplified Chinese
-Locale.define('zh-CHS', 'FormValidator', {
-
-	required: '此项必填。',
-	minLength: '请至少输入 {minLength} 个字符 (已输入 {length} 个)。',
-	maxLength: '最多只能输入 {maxLength} 个字符 (已输入 {length} 个)。',
-	integer: '请输入一个整数，不能包含小数点。例如："1", "200"。',
-	numeric: '请输入一个数字，例如："1", "1.1", "-1", "-1.1"。',
-	digits: '请输入由数字和标点符号组成的内容。例如电话号码。',
-	alpha: '请输入 A-Z 的 26 个字母，不能包含空格或任何其他字符。',
-	alphanum: '请输入 A-Z 的 26 个字母或 0-9 的 10 个数字，不能包含空格或任何其他字符。',
-	dateSuchAs: '请输入合法的日期格式，如：{date}。',
-	dateInFormatMDY: '请输入合法的日期格式，例如：YYYY-MM-DD ("2010-12-31")。',
-	email: '请输入合法的电子信箱地址，例如："fred@domain.com"。',
-	url: '请输入合法的 Url 地址，例如：http://www.example.com。',
-	currencyDollar: '请输入合法的货币符号，例如：￥100.0',
-	oneRequired: '请至少选择一项。',
-	errorPrefix: '错误：',
-	warningPrefix: '警告：',
-
-	// Form.Validator.Extras
-	noSpace: '不能包含空格。',
-	reqChkByNode: '未选择任何内容。',
-	requiredChk: '此项必填。',
-	reqChkByName: '请选择 {label}.',
-	match: '必须与{matchName}相匹配',
-	startDate: '起始日期',
-	endDate: '结束日期',
-	currendDate: '当前日期',
-	afterDate: '日期必须等于或晚于 {label}.',
-	beforeDate: '日期必须早于或等于 {label}.',
-	startMonth: '请选择起始月份',
-	sameMonth: '您必须修改两个日期中的一个，以确保它们在同一月份。',
-	creditcard: '您输入的信用卡号码不正确。当前已输入{length}个字符。'
-
-});
-
-// Traditional Chinese
-Locale.define('zh-CHT', 'FormValidator', {
-
-	required: '此項必填。 ',
-	minLength: '請至少輸入{minLength} 個字符(已輸入{length} 個)。 ',
-	maxLength: '最多只能輸入{maxLength} 個字符(已輸入{length} 個)。 ',
-	integer: '請輸入一個整數，不能包含小數點。例如："1", "200"。 ',
-	numeric: '請輸入一個數字，例如："1", "1.1", "-1", "-1.1"。 ',
-	digits: '請輸入由數字和標點符號組成的內容。例如電話號碼。 ',
-	alpha: '請輸入AZ 的26 個字母，不能包含空格或任何其他字符。 ',
-	alphanum: '請輸入AZ 的26 個字母或0-9 的10 個數字，不能包含空格或任何其他字符。 ',
-	dateSuchAs: '請輸入合法的日期格式，如：{date}。 ',
-	dateInFormatMDY: '請輸入合法的日期格式，例如：YYYY-MM-DD ("2010-12-31")。 ',
-	email: '請輸入合法的電子信箱地址，例如："fred@domain.com"。 ',
-	url: '請輸入合法的Url 地址，例如：http://www.example.com。 ',
-	currencyDollar: '請輸入合法的貨幣符號，例如：￥100.0',
-	oneRequired: '請至少選擇一項。 ',
-	errorPrefix: '錯誤：',
-	warningPrefix: '警告：',
-
-	// Form.Validator.Extras
-	noSpace: '不能包含空格。 ',
-	reqChkByNode: '未選擇任何內容。 ',
-	requiredChk: '此項必填。 ',
-	reqChkByName: '請選擇 {label}.',
-	match: '必須與{matchName}相匹配',
-	startDate: '起始日期',
-	endDate: '結束日期',
-	currendDate: '當前日期',
-	afterDate: '日期必須等於或晚於{label}.',
-	beforeDate: '日期必須早於或等於{label}.',
-	startMonth: '請選擇起始月份',
-	sameMonth: '您必須修改兩個日期中的一個，以確保它們在同一月份。 ',
-	creditcard: '您輸入的信用卡號碼不正確。當前已輸入{length}個字符。 '
-
-});
-
-Form.Validator.add('validate-currency-yuan', {
-
-	errorMsg: function(){
-		return Form.Validator.getMsg('currencyYuan');
-	},
-
-	test: function(element){
-		// [￥]1[##][,###]+[.##]
-		// [￥]1###+[.##]
-		// [￥]0.##
-		// [￥].##
-		return Form.Validator.getValidator('IsEmpty').test(element) || (/^￥?\-?([1-9]{1}[0-9]{0,2}(\,[0-9]{3})*(\.[0-9]{0,2})?|[1-9]{1}\d*(\.[0-9]{0,2})?|0(\.[0-9]{0,2})?|(\.[0-9]{1,2})?)$/).test(element.get('value'));
-	}
-
-});
+}).call(this);
 

@@ -1,5 +1,15 @@
 /*
 ---
+MooTools: the javascript framework
+
+web build:
+ - http://mootools.net/core/7c56cfef9dddcf170a5d68e3fb61cfd7
+
+packager build:
+ - packager build Core/Core Core/Array Core/String Core/Number Core/Function Core/Object Core/Event Core/Browser Core/Class Core/Class.Extras Core/Slick.Parser Core/Slick.Finder Core/Element Core/Element.Style Core/Element.Event Core/Element.Dimensions Core/Fx Core/Fx.CSS Core/Fx.Tween Core/Fx.Morph Core/Fx.Transitions Core/Request Core/Request.HTML Core/Request.JSON Core/Cookie Core/JSON Core/DOMReady Core/Swiff
+
+/*
+---
 
 name: Core
 
@@ -23,8 +33,8 @@ provides: [Core, MooTools, Type, typeOf, instanceOf, Native]
 (function(){
 
 this.MooTools = {
-	version: '1.3.1dev',
-	build: 'dd81905cbeb002f0f4ba177e0229e55144e95678'
+	version: '1.3.1',
+	build: 'af48c8d589f43f32212f9bb8ff68a127e6a3ba6c'
 };
 
 // typeOf, instanceOf
@@ -293,9 +303,10 @@ Number.extend('random', function(min, max){
 
 // forEach, each
 
+var hasOwnProperty = Object.prototype.hasOwnProperty;
 Object.extend('forEach', function(object, fn, bind){
 	for (var key in object){
-		if (object.hasOwnProperty(key)) fn.call(bind, object[key], key, object);
+		if (hasOwnProperty.call(object, key)) fn.call(bind, object[key], key, object);
 	}
 });
 
@@ -785,6 +796,9 @@ provides: [Object, Hash]
 ...
 */
 
+(function(){
+
+var hasOwnProperty = Object.prototype.hasOwnProperty;
 
 Object.extend({
 
@@ -800,7 +814,7 @@ Object.extend({
 	map: function(object, fn, bind){
 		var results = {};
 		for (var key in object){
-			if (object.hasOwnProperty(key)) results[key] = fn.call(bind, object[key], key, object);
+			if (hasOwnProperty.call(object, key)) results[key] = fn.call(bind, object[key], key, object);
 		}
 		return results;
 	},
@@ -815,14 +829,14 @@ Object.extend({
 
 	every: function(object, fn, bind){
 		for (var key in object){
-			if (object.hasOwnProperty(key) && !fn.call(bind, object[key], key)) return false;
+			if (hasOwnProperty.call(object, key) && !fn.call(bind, object[key], key)) return false;
 		}
 		return true;
 	},
 
 	some: function(object, fn, bind){
 		for (var key in object){
-			if (object.hasOwnProperty(key) && fn.call(bind, object[key], key)) return true;
+			if (hasOwnProperty.call(object, key) && fn.call(bind, object[key], key)) return true;
 		}
 		return false;
 	},
@@ -830,7 +844,7 @@ Object.extend({
 	keys: function(object){
 		var keys = [];
 		for (var key in object){
-			if (object.hasOwnProperty(key)) keys.push(key);
+			if (hasOwnProperty.call(object, key)) keys.push(key);
 		}
 		return keys;
 	},
@@ -838,7 +852,7 @@ Object.extend({
 	values: function(object){
 		var values = [];
 		for (var key in object){
-			if (object.hasOwnProperty(key)) values.push(object[key]);
+			if (hasOwnProperty.call(object, key)) values.push(object[key]);
 		}
 		return values;
 	},
@@ -849,7 +863,7 @@ Object.extend({
 
 	keyOf: function(object, value){
 		for (var key in object){
-			if (object.hasOwnProperty(key) && object[key] === value) return key;
+			if (hasOwnProperty.call(object, key) && object[key] === value) return key;
 		}
 		return null;
 	},
@@ -883,6 +897,7 @@ Object.extend({
 
 });
 
+})();
 
 
 
@@ -1116,12 +1131,14 @@ var Event = new Type('Event', function(event, win){
 	var type = event.type,
 		target = event.target || event.srcElement,
 		page = {},
-		client = {};
+		client = {},
+		related = null,
+		rightClick, wheel, code, key;
 	while (target && target.nodeType == 3) target = target.parentNode;
 
 	if (type.indexOf('key') != -1){
-		var code = event.which || event.keyCode;
-		var key = Object.keyOf(Event.Keys, code);
+		code = event.which || event.keyCode;
+		key = Object.keyOf(Event.Keys, code);
 		if (type == 'keydown'){
 			var fKey = code - 111;
 			if (fKey > 0 && fKey < 13) key = 'f' + fKey;
@@ -1138,10 +1155,9 @@ var Event = new Type('Event', function(event, win){
 			y: (event.pageY != null) ? event.pageY - win.pageYOffset : event.clientY
 		};
 		if ((/DOMMouseScroll|mousewheel/).test(type)){
-			var wheel = (event.wheelDelta) ? event.wheelDelta / 120 : -(event.detail || 0) / 3;
+			wheel = (event.wheelDelta) ? event.wheelDelta / 120 : -(event.detail || 0) / 3;
 		}
-		var rightClick = (event.which == 3) || (event.button == 2),
-			related = null;
+		rightClick = (event.which == 3) || (event.button == 2);
 		if ((/over|out/).test(type)){
 			related = event.relatedTarget || event[(type == 'mouseover' ? 'from' : 'to') + 'Element'];
 			var testRelated = function(){
@@ -1857,7 +1873,7 @@ local.setDocument = function(document){
 
 		// native matchesSelector function
 
-		features.nativeMatchesSelector = root.matchesSelector || root.msMatchesSelector || root.mozMatchesSelector || root.webkitMatchesSelector;
+		features.nativeMatchesSelector = root.matchesSelector || /*root.msMatchesSelector ||*/ root.mozMatchesSelector || root.webkitMatchesSelector;
 		if (features.nativeMatchesSelector) try {
 			// if matchesSelector trows errors on incorrect sintaxes we can use it
 			features.nativeMatchesSelector.call(root, ':slick');
@@ -2313,9 +2329,12 @@ var combinators = {
 					children = node.all[id];
 					if (!children) return;
 					if (!children[0]) children = [children];
-					for (i = 0; item = children[i++];) if (item.getAttributeNode('id').nodeValue == id){
-						this.push(item, tag, null, classes, attributes, pseudos);
-						break;
+					for (i = 0; item = children[i++];){
+						var idNode = item.getAttributeNode('id');
+						if (idNode && idNode.nodeValue == id){
+							this.push(item, tag, null, classes, attributes, pseudos);
+							break;
+						}
 					} 
 					return;
 				}
@@ -2570,7 +2589,7 @@ local.attributeGetters = {
 
 var Slick = local.Slick = (this.Slick || {});
 
-Slick.version = '1.1.3';
+Slick.version = '1.1.5';
 
 // Slick finder
 
@@ -3996,28 +4015,28 @@ var styleString = Element.getComputedStyle;
 
 function styleNumber(element, style){
 	return styleString(element, style).toInt() || 0;
-};
+}
 
 function borderBox(element){
 	return styleString(element, '-moz-box-sizing') == 'border-box';
-};
+}
 
 function topBorder(element){
 	return styleNumber(element, 'border-top-width');
-};
+}
 
 function leftBorder(element){
 	return styleNumber(element, 'border-left-width');
-};
+}
 
 function isBody(element){
 	return (/^(?:body|html)$/i).test(element.tagName);
-};
+}
 
 function getCompatElement(element){
 	var doc = element.getDocument();
 	return (!doc.compatMode || doc.compatMode == 'CSS1Compat') ? doc.html : doc.body;
-};
+}
 
 }).call(this);
 
@@ -4702,7 +4721,8 @@ provides: Request
 
 (function(){
 
-var progressSupport = ('onprogress' in new Browser.Request);
+var empty = function(){},
+	progressSupport = ('onprogress' in new Browser.Request);
 
 var Request = this.Request = new Class({
 
@@ -4755,7 +4775,8 @@ var Request = this.Request = new Class({
 			var status = xhr.status;
 			this.status = (status == 1223) ? 204 : status;
 		}.bind(this));
-		xhr.onreadystatechange = function(){};
+		xhr.onreadystatechange = empty;
+		if (progressSupport) xhr.onprogress = xhr.onloadstart = empty;
 		clearTimeout(this.timer);
 		
 		this.response = {text: this.xhr.responseText || '', xml: this.xhr.responseXML};
@@ -4906,7 +4927,8 @@ var Request = this.Request = new Class({
 		var xhr = this.xhr;
 		xhr.abort();
 		clearTimeout(this.timer);
-		xhr.onreadystatechange = xhr.onprogress = xhr.onloadstart = function(){};
+		xhr.onreadystatechange = empty;
+		if (progressSupport) xhr.onprogress = xhr.onloadstart = empty;
 		this.xhr = new Browser.Request();
 		this.fireEvent('cancel');
 		return this;
