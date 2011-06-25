@@ -23,8 +23,8 @@ window.addEvent('domready', function() {
 	});
 
 	// use multiple pseudos
-	$('multiplePseudoText').addEvent('keydown:relay(textarea):keys(enter):once', function(){
-		this.getElement('textarea').set('text', 'MooTools!!').highlight();
+	$('multiplePseudoText').addEvent('keydown:relay(textarea):keys(enter):once', function(event, el){
+		el.set('value', 'MooTools!!').highlight();
 	});
 
 	// pause pseudo event, you can define the pause, otherwise it will use the default (250)
