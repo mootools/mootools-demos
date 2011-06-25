@@ -3,11 +3,11 @@
 Elements.implement({
 
 	equalize: function(property){
-		var sum = 0,
-			length = i = this.length;
+		var sum = 0, i, len;
+		len = i = this.length;
 		while (i--) sum += this[i].getDimensions()[property];
-		var average = Math.round(sum / length);
-		i = length;
+		var average = Math.round(sum / len);
+		i = len;
 		while (i--) this.tween(property, average);
 		return this;
 	},
@@ -33,6 +33,6 @@ window.addEvent('domready', function(){
 		i = !i
 
 		if (i) els.equalize('height');
-		else els.setRandom('height', 30, 100);
+		else els.setRandom('height', 30, 150);
 	});
 });
