@@ -1,6 +1,6 @@
 // MooTools: the javascript framework.
-// Load this file's selection again by visiting: http://mootools.net/more/bb945d63e477d2dd2d6e65950e39471b 
-// Or build this file again with packager using: packager build More/More More/Events.Pseudos More/Class.Refactor More/Class.Binds More/Class.Occlude More/Chain.Wait More/Array.Extras More/Date More/Date.Extras More/Number.Format More/Object.Extras More/String.Extras More/String.QueryString More/URI More/URI.Relative More/Hash More/Hash.Extras More/Element.Forms More/Elements.From More/Element.Event.Pseudos More/Element.Event.Pseudos.Keys More/Element.Delegation More/Element.Measure More/Element.Pin More/Element.Position More/Element.Shortcuts More/Form.Request More/Form.Request.Append More/Form.Validator More/Form.Validator.Inline More/Form.Validator.Extras More/OverText More/Fx.Elements More/Fx.Accordion More/Fx.Move More/Fx.Reveal More/Fx.Scroll More/Fx.Slide More/Fx.SmoothScroll More/Fx.Sort More/Drag More/Drag.Move More/Slider More/Sortables More/Request.JSONP More/Request.Queue More/Request.Periodical More/Assets More/Color More/Group More/Hash.Cookie More/IframeShim More/HtmlTable More/HtmlTable.Zebra More/HtmlTable.Sort More/HtmlTable.Select More/Keyboard More/Keyboard.Extras More/Mask More/Scroller More/Tips More/Spinner More/Locale More/Locale.Set.From More/Locale.en-US.Date More/Locale.en-US.Form.Validator More/Locale.en-US.Number
+// Load this file's selection again by visiting: http://mootools.net/more/dd5b84594dc4c16de16f47ec6cbdbe12
+// Or build this file again with packager using: packager build More/More More/Events.Pseudos More/Class.Refactor More/Class.Binds More/Class.Occlude More/Chain.Wait More/Array.Extras More/Date More/Date.Extras More/Number.Format More/Object.Extras More/String.Extras More/String.QueryString More/URI More/URI.Relative More/Hash More/Hash.Extras More/Element.Forms More/Elements.From More/Element.Event.Pseudos More/Element.Event.Pseudos.Keys More/Element.Delegation More/Element.Measure More/Element.Pin More/Element.Position More/Element.Shortcuts More/Form.Request More/Form.Request.Append More/Form.Validator More/Form.Validator.Inline More/Form.Validator.Extras More/OverText More/Fx.Elements More/Fx.Accordion More/Fx.Move More/Fx.Reveal More/Fx.Scroll More/Fx.Slide More/Fx.SmoothScroll More/Fx.Sort More/Drag More/Drag.Move More/Slider More/Sortables More/Request.JSONP More/Request.Queue More/Request.Periodical More/Assets More/Color More/Group More/Hash.Cookie More/IframeShim More/Table More/HtmlTable More/HtmlTable.Zebra More/HtmlTable.Sort More/HtmlTable.Select More/Keyboard More/Keyboard.Extras More/Mask More/Scroller More/Tips More/Spinner More/Locale More/Locale.Set.From More/Locale.en-US.Date More/Locale.en-US.Form.Validator More/Locale.en-US.Number
 /*
 ---
 
@@ -20,6 +20,7 @@ authors:
   - Tim Wienk
   - Christoph Pojer
   - Aaron Newton
+  - Jacob Thornton
 
 requires:
   - Core/MooTools
@@ -30,8 +31,8 @@ provides: [MooTools.More]
 */
 
 MooTools.More = {
-	'version': '1.3.1.1',
-	'build': '0292a3af1eea242b817fecf9daa127417d10d4ce'
+	'version': '1.3.2.1',
+	'build': 'e586bcd2496e9b22acfde32e12f84d49ce09e59d'
 };
 
 
@@ -214,7 +215,7 @@ Events.implement(Events.Pseudos(pseudos, proto.addEvent, proto.removeEvent));
 	if (this[klass]) this[klass].implement(Events.prototype);
 });
 
-}).call(this);
+})();
 
 
 /*
@@ -245,10 +246,10 @@ Class.refactor = function(original, refactors){
 
 	Object.each(refactors, function(item, name){
 		var origin = original.prototype[name];
-		if (origin && origin.$origin) origin = origin.$origin;
+		origin = (origin && origin.$origin) || origin || function(){};
 		original.implement(name, (typeof item == 'function') ? function(){
 			var old = this.previous;
-			this.previous = origin || function(){};
+			this.previous = origin;
 			var value = item.apply(this, arguments);
 			this.previous = old;
 			return value;
@@ -285,7 +286,7 @@ provides: [Class.Binds]
 
 Class.Mutators.Binds = function(binds){
 	if (!this.prototype.initialize) this.implement('initialize', function(){});
-	return binds;
+	return Array.from(binds).concat(this.prototype.Binds || []);
 };
 
 Class.Mutators.initialize = function(initialize){
@@ -370,6 +371,7 @@ provides: [Chain.Wait]
 		wait: function(duration){
 			return this.chain(function(){
 				this.callChain.delay(duration == null ? 500 : duration, this);
+				return this;
 			}.bind(this));
 		}
 	};
@@ -400,7 +402,7 @@ provides: [Chain.Wait]
 		});
 	}
 
-}).call(this);
+})();
 
 
 /*
@@ -481,7 +483,7 @@ Array.implement({
 
 });
 
-}).call(this);
+})();
 
 
 /*
@@ -549,7 +551,7 @@ Object.extend({
 
 });
 
-}).call(this);
+})();
 
 
 /*
@@ -603,7 +605,7 @@ var Locale = this.Locale = {
 
 		if (set) locale.define(set, key, value);
 
-		
+
 
 		if (!current) current = locale;
 
@@ -618,7 +620,7 @@ var Locale = this.Locale = {
 
 			this.fireEvent('change', locale);
 
-			
+
 		}
 
 		return this;
@@ -717,7 +719,7 @@ Locale.Set = new Class({
 
 
 
-}).call(this);
+})();
 
 
 /*
@@ -1206,7 +1208,7 @@ Date.extend({
 		return this;
 	},
 
-	
+
 
 	defineParser: function(pattern){
 		parsePatterns.push((pattern.re && pattern.handler) ? pattern : build(pattern));
@@ -1356,7 +1358,7 @@ Locale.addEvent('change', function(language){
 	if (Locale.get('Date')) recompile(language);
 }).fireEvent('change', Locale.getCurrent());
 
-}).call(this);
+})();
 
 
 /*
@@ -1390,7 +1392,7 @@ Date.implement({
 
 	timeDiff: function(to, separator){
 		if (to == null) to = new Date;
-		var delta = ((to - this) / 1000).floor();
+		var delta = ((to - this) / 1000).floor().abs();
 
 		var vals = [],
 			durations = [60, 60, 24, 365, 0],
@@ -1533,22 +1535,13 @@ Locale.define('en-US', 'Number', {
 
 /*
 ---
-
 name: Number.Format
-
 description: Extends the Number Type object to include a number formatting method.
-
 license: MIT-style license
-
-authors:
-  - Arian Stolwijk
-
-requires:
-  - Core/Number
-  - /Locale.en-US.Number
-
-provides: [Number.Extras]
-
+authors: [Arian Stolwijk]
+requires: [Core/Number, Locale.en-US.Number]
+# Number.Extras is for compatibility
+provides: [Number.Format, Number.Extras]
 ...
 */
 
@@ -1558,7 +1551,7 @@ Number.implement({
 	format: function(options){
 		// Thanks dojo and YUI for some inspiration
 		var value = this;
-		if (!options) options = {};
+		options = options ? Object.clone(options) : {};
 		var getOption = function(key){
 			if (options[key] != null) return options[key];
 			return Locale.get('Number.' + key);
@@ -1571,10 +1564,10 @@ Number.implement({
 			decimals = getOption('decimals');
 
 		if (negative){
-			var negativeLocale = Locale.get('Number.negative') || {};
+			var negativeLocale = getOption('negative') || {};
 			if (negativeLocale.prefix == null && negativeLocale.suffix == null) negativeLocale.prefix = '-';
-			Object.each(negativeLocale, function(value, key){
-				options[key] = (key == 'prefix' || key == 'suffix') ? (getOption(key) + value) : value;
+			['prefix', 'suffix'].each(function(key){
+				if (negativeLocale[key]) options[key] = getOption(key) + negativeLocale[key];
 			});
 
 			value = -value;
@@ -1794,7 +1787,7 @@ String.implement({
 
 });
 
-}).call(this);
+})();
 
 
 /*
@@ -2035,7 +2028,7 @@ String.implement({
 
 });
 
-}).call(this);
+})();
 
 
 /*
@@ -2240,7 +2233,7 @@ Hash.implement({
 Hash.alias({indexOf: 'keyOf', contains: 'hasValue'});
 
 
-}).call(this);
+})();
 
 
 
@@ -2503,7 +2496,7 @@ Event.definePseudo = function(key, listener){
 var proto = Element.prototype;
 [Element, Window, Document].invoke('implement', Events.Pseudos(pseudos, proto.addEvent, proto.removeEvent));
 
-}).call(this);
+})();
 
 
 /*
@@ -2587,7 +2580,7 @@ Object.append(Event.Keys, {
 	'+': 107
 });
 
-}).call(this);
+})();
 
 
 /*
@@ -2629,6 +2622,12 @@ var check = function(split, target, event){
 	return Slick.match(target, split.value) && (!condition || condition.call(target, event));
 };
 
+var bubbleUp = function(split, event, fn){
+	for (var target = event.target; target && target != this; target = document.id(target.parentNode)){
+		if (target && check(split, target, event)) return fn.call(target, event, target);
+	}
+};
+
 var formObserver = function(eventName){
 
 	var $delegationKey = '$delegation:';
@@ -2650,16 +2649,20 @@ var formObserver = function(eventName){
 			var event = args[0],
 				forms = this.retrieve($delegationKey + 'forms', []),
 				target = event.target,
-				form = (target.get('tag') == 'form') ? target : event.target.getParent('form'),
-				formEvents = form.retrieve($delegationKey + 'originalFn', []),
-				formListeners = form.retrieve($delegationKey + 'listeners', []);
+				form = (target.get('tag') == 'form') ? target : event.target.getParent('form');
+
+			if (!form) return;
+
+			var formEvents = form.retrieve($delegationKey + 'originalFn', []),
+				formListeners = form.retrieve($delegationKey + 'listeners', []),
+				self = this;
 
 			forms.include(form);
 			this.store($delegationKey + 'forms', forms);
 
 			if (!formEvents.contains(fn)){
 				var formListener = function(event){
-					if (check(split, this, event)) fn.call(this, event);
+					bubbleUp.call(self, split, event, fn);
 				};
 				form.addEvent(eventName, formListener);
 
@@ -2679,9 +2682,9 @@ var inputObserver = function(eventName){
 		listener: function(split, fn, args){
 			var events = {blur: function(){
 				this.removeEvents(events);
-			}};
+			}}, self = this;
 			events[eventName] = function(event){
-				if (check(split, this, event)) fn.call(this, event);
+				bubbleUp.call(self, split, event, fn);
 			};
 			args[0].target.addEvents(events);
 		}
@@ -2712,24 +2715,14 @@ if (!eventListenerSupport) Object.append(eventOptions, {
 	select: inputObserver('select')
 });
 
-
 Event.definePseudo('relay', {
-	listener: function(split, fn, args, monitor, options){
-		var event = args[0];
-
-		for (var target = event.target; target && target != this; target = target.parentNode){
-			var finalTarget = document.id(target);
-			if (check(split, finalTarget, event)){
-				if (finalTarget) fn.call(finalTarget, event, finalTarget);
-				return;
-			}
-		}
+	listener: function(split, fn, args){
+		bubbleUp.call(this, split, args[0], fn);
 	},
 	options: eventOptions
 });
 
-}).call(this);
-
+})();
 
 
 /*
@@ -2848,7 +2841,7 @@ Element.implement({
 	},
 
 	getComputedSize: function(options){
-		
+
 
 		options = Object.merge({
 			styles: ['padding','border'],
@@ -2898,7 +2891,7 @@ Element.implement({
 
 });
 
-}).call(this);
+})();
 
 
 /*
@@ -3028,7 +3021,7 @@ provides: [Element.Pin]
 
 
 
-}).call(this);
+})();
 
 
 /*
@@ -3044,219 +3037,228 @@ license: MIT-style license
 
 authors:
   - Aaron Newton
+  - Jacob Thornton
 
 requires:
+  - Core/Options
   - Core/Element.Dimensions
-  - /Element.Measure
+  - Element.Measure
 
 provides: [Element.Position]
 
 ...
 */
 
-(function(){
+(function(original){
 
-var original = Element.prototype.position;
+var local = Element.Position = {
+
+	options: {/*
+		edge: false,
+		returnPos: false,
+		minimum: {x: 0, y: 0},
+		maximum: {x: 0, y: 0},
+		relFixedPosition: false,
+		ignoreMargins: false,
+		ignoreScroll: false,
+		allowNegative: false,*/
+		relativeTo: document.body,
+		position: {
+			x: 'center', //left, center, right
+			y: 'center' //top, center, bottom
+		},
+		offset: {x: 0, y: 0}
+	},
+
+	getOptions: function(element, options){
+		options = Object.merge({}, local.options, options);
+		local.setPositionOption(options);
+		local.setEdgeOption(options);
+		local.setOffsetOption(element, options);
+		local.setDimensionsOption(element, options);
+		return options;
+	},
+
+	setPositionOption: function(options){
+		options.position = local.getCoordinateFromValue(options.position);
+	},
+
+	setEdgeOption: function(options){
+		var edgeOption = local.getCoordinateFromValue(options.edge);
+		options.edge = edgeOption ? edgeOption :
+			(options.position.x == 'center' && options.position.y == 'center') ? {x: 'center', y: 'center'} :
+			{x: 'left', y: 'top'};
+	},
+
+	setOffsetOption: function(element, options){
+		var parentOffset = {x: 0, y: 0},
+			offsetParent = element.measure(function(){
+				return document.id(this.getOffsetParent());
+			}),
+			parentScroll = offsetParent.getScroll();
+
+		if (!offsetParent || offsetParent == element.getDocument().body) return;
+		parentOffset = offsetParent.measure(function(){
+			var position = this.getPosition();
+			if (this.getStyle('position') == 'fixed'){
+				var scroll = window.getScroll();
+				position.x += scroll.x;
+				position.y += scroll.y;
+			}
+			return position;
+		});
+
+		options.offset = {
+			parentPositioned: offsetParent != document.id(options.relativeTo),
+			x: options.offset.x - parentOffset.x + parentScroll.x,
+			y: options.offset.y - parentOffset.y + parentScroll.y
+		};
+	},
+
+	setDimensionsOption: function(element, options){
+		options.dimensions = element.getDimensions({
+			computeSize: true,
+			styles: ['padding', 'border', 'margin']
+		});
+	},
+
+	getPosition: function(element, options){
+		var position = {};
+		options = local.getOptions(element, options);
+		var relativeTo = document.id(options.relativeTo) || document.body;
+
+		local.setPositionCoordinates(options, position, relativeTo);
+		if (options.edge) local.toEdge(position, options);
+
+		var offset = options.offset;
+		position.left = ((position.x >= 0 || offset.parentPositioned || options.allowNegative) ? position.x : 0).toInt();
+		position.top = ((position.y >= 0 || offset.parentPositioned || options.allowNegative) ? position.y : 0).toInt();
+
+		local.toMinMax(position, options);
+
+		if (options.relFixedPosition || relativeTo.getStyle('position') == 'fixed') local.toRelFixedPosition(relativeTo, position);
+		if (options.ignoreScroll) local.toIgnoreScroll(relativeTo, position);
+		if (options.ignoreMargins) local.toIgnoreMargins(position, options);
+
+		position.left = Math.ceil(position.left);
+		position.top = Math.ceil(position.top);
+		delete position.x;
+		delete position.y;
+
+		return position;
+	},
+
+	setPositionCoordinates: function(options, position, relativeTo){
+		var offsetY = options.offset.y,
+			offsetX = options.offset.x,
+			calc = (relativeTo == document.body) ? window.getScroll() : relativeTo.getPosition(),
+			top = calc.y,
+			left = calc.x,
+			winSize = window.getSize();
+
+		switch(options.position.x){
+			case 'left': position.x = left + offsetX; break;
+			case 'right': position.x = left + offsetX + relativeTo.offsetWidth; break;
+			default: position.x = left + ((relativeTo == document.body ? winSize.x : relativeTo.offsetWidth) / 2) + offsetX; break;
+		}
+
+		switch(options.position.y){
+			case 'top': position.y = top + offsetY; break;
+			case 'bottom': position.y = top + offsetY + relativeTo.offsetHeight; break;
+			default: position.y = top + ((relativeTo == document.body ? winSize.y : relativeTo.offsetHeight) / 2) + offsetY; break;
+		}
+	},
+
+	toMinMax: function(position, options){
+		var xy = {left: 'x', top: 'y'}, value;
+		['minimum', 'maximum'].each(function(minmax){
+			['left', 'top'].each(function(lr){
+				value = options[minmax] ? options[minmax][xy[lr]] : null;
+				if (value != null && ((minmax == 'minimum') ? position[lr] < value : position[lr] > value)) position[lr] = value;
+			});
+		});
+	},
+
+	toRelFixedPosition: function(relativeTo, position){
+		var winScroll = window.getScroll();
+		position.top += winScroll.y;
+		position.left += winScroll.x;
+	},
+
+	toIgnoreScroll: function(relativeTo, position){
+		var relScroll = relativeTo.getScroll();
+		position.top -= relScroll.y;
+		position.left -= relScroll.x;
+	},
+
+	toIgnoreMargins: function(position, options){
+		position.left += options.edge.x == 'right'
+			? options.dimensions['margin-right']
+			: (options.edge.x != 'center'
+				? -options.dimensions['margin-left']
+				: -options.dimensions['margin-left'] + ((options.dimensions['margin-right'] + options.dimensions['margin-left']) / 2));
+
+		position.top += options.edge.y == 'bottom'
+			? options.dimensions['margin-bottom']
+			: (options.edge.y != 'center'
+				? -options.dimensions['margin-top']
+				: -options.dimensions['margin-top'] + ((options.dimensions['margin-bottom'] + options.dimensions['margin-top']) / 2));
+	},
+
+	toEdge: function(position, options){
+		var edgeOffset = {},
+			dimensions = options.dimensions,
+			edge = options.edge;
+
+		switch(edge.x){
+			case 'left': edgeOffset.x = 0; break;
+			case 'right': edgeOffset.x = -dimensions.x - dimensions.computedRight - dimensions.computedLeft; break;
+			// center
+			default: edgeOffset.x = -(Math.round(dimensions.totalWidth / 2)); break;
+		}
+
+		switch(edge.y){
+			case 'top': edgeOffset.y = 0; break;
+			case 'bottom': edgeOffset.y = -dimensions.y - dimensions.computedTop - dimensions.computedBottom; break;
+			// center
+			default: edgeOffset.y = -(Math.round(dimensions.totalHeight / 2)); break;
+		}
+
+		position.x += edgeOffset.x;
+		position.y += edgeOffset.y;
+	},
+
+	getCoordinateFromValue: function(option){
+		if (typeOf(option) != 'string') return option;
+		option = option.toLowerCase();
+
+		return {
+			x: option.test('left') ? 'left'
+				: (option.test('right') ? 'right' : 'center'),
+			y: option.test(/upper|top/) ? 'top'
+				: (option.test('bottom') ? 'bottom' : 'center')
+		};
+	}
+
+};
 
 Element.implement({
 
 	position: function(options){
-		//call original position if the options are x/y values
-		if (options && (options.x != null || options.y != null)){
-			return original ? original.apply(this, arguments) : this;
+		if (options && (options.x != null || options.y != null)) {
+			return (original ? original.apply(this, arguments) : this);
 		}
+		var position = this.setStyle('position', 'absolute').calculatePosition(options);
+		return (options && options.returnPos) ? position : this.setStyles(position);
+	},
 
-		Object.each(options || {}, function(v, k){
-			if (v == null) delete options[k];
-		});
-
-		options = Object.merge({
-			// minimum: { x: 0, y: 0 },
-			// maximum: { x: 0, y: 0},
-			relativeTo: document.body,
-			position: {
-				x: 'center', //left, center, right
-				y: 'center' //top, center, bottom
-			},
-			offset: {x: 0, y: 0}/*,
-			edge: false,
-			returnPos: false,
-			relFixedPosition: false,
-			ignoreMargins: false,
-			ignoreScroll: false,
-			allowNegative: false*/
-		}, options);
-
-		//compute the offset of the parent positioned element if this element is in one
-		var parentOffset = {x: 0, y: 0},
-			parentPositioned = false;
-
-		/* dollar around getOffsetParent should not be necessary, but as it does not return
-		 * a mootools extended element in IE, an error occurs on the call to expose. See:
-		 * http://mootools.lighthouseapp.com/projects/2706/tickets/333-element-getoffsetparent-inconsistency-between-ie-and-other-browsers */
-		var offsetParent = this.measure(function(){
-			return document.id(this.getOffsetParent());
-		});
-		if (offsetParent && offsetParent != this.getDocument().body){
-			parentOffset = offsetParent.measure(function(){
-				return this.getPosition();
-			});
-			parentPositioned = offsetParent != document.id(options.relativeTo);
-			options.offset.x = options.offset.x - parentOffset.x;
-			options.offset.y = options.offset.y - parentOffset.y;
-		}
-
-		//upperRight, bottomRight, centerRight, upperLeft, bottomLeft, centerLeft
-		//topRight, topLeft, centerTop, centerBottom, center
-		var fixValue = function(option){
-			if (typeOf(option) != 'string') return option;
-			option = option.toLowerCase();
-			var val = {};
-
-			if (option.test('left')){
-				val.x = 'left';
-			} else if (option.test('right')){
-				val.x = 'right';
-			} else {
-				val.x = 'center';
-			}
-
-			if (option.test('upper') || option.test('top')){
-				val.y = 'top';
-			} else if (option.test('bottom')){
-				val.y = 'bottom';
-			} else {
-				val.y = 'center';
-			}
-
-			return val;
-		};
-
-		options.edge = fixValue(options.edge);
-		options.position = fixValue(options.position);
-		if (!options.edge){
-			if (options.position.x == 'center' && options.position.y == 'center') options.edge = {x:'center', y:'center'};
-			else options.edge = {x:'left', y:'top'};
-		}
-
-		this.setStyle('position', 'absolute');
-		var rel = document.id(options.relativeTo) || document.body,
-				calc = rel == document.body ? window.getScroll() : rel.getPosition(),
-				top = calc.y, left = calc.x;
-
-		var dim = this.getDimensions({
-			computeSize: true,
-			styles:['padding', 'border','margin']
-		});
-
-		var pos = {},
-			prefY = options.offset.y,
-			prefX = options.offset.x,
-			winSize = window.getSize();
-
-		switch (options.position.x){
-			case 'left':
-				pos.x = left + prefX;
-				break;
-			case 'right':
-				pos.x = left + prefX + rel.offsetWidth;
-				break;
-			default: //center
-				pos.x = left + ((rel == document.body ? winSize.x : rel.offsetWidth)/2) + prefX;
-				break;
-		}
-
-		switch (options.position.y){
-			case 'top':
-				pos.y = top + prefY;
-				break;
-			case 'bottom':
-				pos.y = top + prefY + rel.offsetHeight;
-				break;
-			default: //center
-				pos.y = top + ((rel == document.body ? winSize.y : rel.offsetHeight)/2) + prefY;
-				break;
-		}
-
-		if (options.edge){
-			var edgeOffset = {};
-
-			switch (options.edge.x){
-				case 'left':
-					edgeOffset.x = 0;
-					break;
-				case 'right':
-					edgeOffset.x = -dim.x-dim.computedRight-dim.computedLeft;
-					break;
-				default: //center
-					edgeOffset.x = -(dim.totalWidth/2);
-					break;
-			}
-
-			switch (options.edge.y){
-				case 'top':
-					edgeOffset.y = 0;
-					break;
-				case 'bottom':
-					edgeOffset.y = -dim.y-dim.computedTop-dim.computedBottom;
-					break;
-				default: //center
-					edgeOffset.y = -(dim.totalHeight/2);
-					break;
-			}
-
-			pos.x += edgeOffset.x;
-			pos.y += edgeOffset.y;
-		}
-
-		pos = {
-			left: ((pos.x >= 0 || parentPositioned || options.allowNegative) ? pos.x : 0).toInt(),
-			top: ((pos.y >= 0 || parentPositioned || options.allowNegative) ? pos.y : 0).toInt()
-		};
-
-		var xy = {left: 'x', top: 'y'};
-
-		['minimum', 'maximum'].each(function(minmax){
-			['left', 'top'].each(function(lr){
-				var val = options[minmax] ? options[minmax][xy[lr]] : null;
-				if (val != null && ((minmax == 'minimum') ? pos[lr] < val : pos[lr] > val)) pos[lr] = val;
-			});
-		});
-
-		if (rel.getStyle('position') == 'fixed' || options.relFixedPosition){
-			var winScroll = window.getScroll();
-			pos.top+= winScroll.y;
-			pos.left+= winScroll.x;
-		}
-		if (options.ignoreScroll){
-			var relScroll = rel.getScroll();
-			pos.top -= relScroll.y;
-			pos.left -= relScroll.x;
-		}
-
-		if (options.ignoreMargins){
-			pos.left += (
-				options.edge.x == 'right' ? dim['margin-right'] :
-				options.edge.x == 'center' ? -dim['margin-left'] + ((dim['margin-right'] + dim['margin-left'])/2) :
-					- dim['margin-left']
-			);
-			pos.top += (
-				options.edge.y == 'bottom' ? dim['margin-bottom'] :
-				options.edge.y == 'center' ? -dim['margin-top'] + ((dim['margin-bottom'] + dim['margin-top'])/2) :
-					- dim['margin-top']
-			);
-		}
-
-		pos.left = Math.ceil(pos.left);
-		pos.top = Math.ceil(pos.top);
-		if (options.returnPos) return pos;
-		else this.setStyles(pos);
-		return this;
+	calculatePosition: function(options){
+		return local.getPosition(this, options);
 	}
 
 });
 
-}).call(this);
+})(Element.prototype.position);
 
 
 /*
@@ -3954,21 +3956,24 @@ if (!window.Form) window.Form = {};
 
 		property: 'form.request',
 
-		initialize: function(form, update, options){
+		initialize: function(form, target, options){
 			this.element = document.id(form);
 			if (this.occlude()) return this.occluded;
-			this.update = document.id(update);
-			this.setOptions(options);
-			this.makeRequest();
-			if (this.options.resetForm){
-				this.request.addEvent('success', function(){
-					Function.attempt(function(){
-						this.element.reset();
-					}.bind(this));
-					if (window.OverText) OverText.update();
-				}.bind(this));
+			this.setOptions(options)
+				.setTarget(target)
+				.attach();
+		},
+
+		setTarget: function(target){
+			this.target = document.id(target);
+			if (!this.request){
+				this.makeRequest();
+			} else {
+				this.request.setOptions({
+					update: this.target
+				});
 			}
-			this.attach();
+			return this;
 		},
 
 		toElement: function(){
@@ -3976,52 +3981,62 @@ if (!window.Form) window.Form = {};
 		},
 
 		makeRequest: function(){
+			var self = this;
 			this.request = new Request.HTML(Object.merge({
-					update: this.update,
+					update: this.target,
 					emulation: false,
 					spinnerTarget: this.element,
 					method: this.element.get('method') || 'post'
 			}, this.options.requestOptions)).addEvents({
 				success: function(tree, elements, html, javascript){
 					['complete', 'success'].each(function(evt){
-						this.fireEvent(evt, [this.update, tree, elements, html, javascript]);
-					}, this);
-				}.bind(this),
+						self.fireEvent(evt, [self.target, tree, elements, html, javascript]);
+					});
+				},
 				failure: function(){
-					this.fireEvent('complete', arguments).fireEvent('failure', arguments);
-				}.bind(this),
+					self.fireEvent('complete', arguments).fireEvent('failure', arguments);
+				},
 				exception: function(){
-					this.fireEvent('failure', arguments);
-				}.bind(this)
+					self.fireEvent('failure', arguments);
+				}
 			});
+			return this.attachReset();
+		},
+
+		attachReset: function(){
+			if (!this.options.resetForm) return this;
+			this.request.addEvent('success', function(){
+				Function.attempt(function(){
+					this.element.reset();
+				}.bind(this));
+				if (window.OverText) OverText.update();
+			}.bind(this));
+			return this;
 		},
 
 		attach: function(attach){
-			if (attach == null) attach = true;
-			var method = attach ? 'addEvent' : 'removeEvent';
-
+			var method = (attach != false) ? 'addEvent' : 'removeEvent';
 			this.element[method]('click:relay(button, input[type=submit])', this.saveClickedButton.bind(this));
 
 			var fv = this.element.retrieve('validator');
 			if (fv) fv[method]('onFormValidate', this.onFormValidate);
 			else this.element[method]('submit', this.onSubmit);
+
+			return this;
 		},
 
 		detach: function(){
-			this.attach(false);
-			return this;
+			return this.attach(false);
 		},
 
 		//public method
 		enable: function(){
-			this.attach();
-			return this;
+			return this.attach();
 		},
 
 		//public method
 		disable: function(){
-			this.detach();
-			return this;
+			return this.detach();
 		},
 
 		onFormValidate: function(valid, form, event){
@@ -4048,10 +4063,11 @@ if (!window.Form) window.Form = {};
 		},
 
 		saveClickedButton: function(event, target){
-			if (!this.options.sendButtonClicked || !target.get('name')) return;
-			this.options.extraData[target.get('name')] = target.get('value') || true;
+			var targetName = target.get('name');
+			if (!targetName || !this.options.sendButtonClicked) return;
+			this.options.extraData[targetName] = target.get('value') || true;
 			this.clickedCleaner = function(){
-				delete this.options.extraData[target.get('name')];
+				delete this.options.extraData[targetName];
 				this.clickedCleaner = function(){};
 			}.bind(this);
 		},
@@ -4076,46 +4092,19 @@ if (!window.Form) window.Form = {};
 
 	});
 
-	Element.Properties.formRequest = {
-
-		set: function(){
-			var opt = Array.link(arguments, {options: Type.isObject, update: Type.isElement, updateId: Type.isString}),
-				update = opt.update || opt.updateId,
-				updater = this.retrieve('form.request');
-			if (update){
-				if (updater) updater.update = document.id(update);
-				this.store('form.request:update', update);
-			}
-			if (opt.options){
-				if (updater) updater.setOptions(opt.options);
-				this.store('form.request:options', opt.options);
-			}
-			return this;
-		},
-
-		get: function(){
-			var opt = Array.link(arguments, {options: Type.isObject, update: Type.isElement, updateId: Type.isString}),
-				update = opt.update || opt.updateId;
-			if (opt.options || update || !this.retrieve('form.request')){
-				if (opt.options || !this.retrieve('form.request:options')) this.set('form.request', opt.options);
-				if (update) this.set('form.request', update);
-				this.store('form.request', new Form.Request(this, this.retrieve('form.request:update'), this.retrieve('form.request:options')));
-			}
-			return this.retrieve('form.request');
+	Element.implement('formUpdate', function(update, options){
+		var fq = this.retrieve('form.request');
+		if (!fq) {
+			fq = new Form.Request(this, update, options);
+		} else {
+			if (update) fq.setTarget(update);
+			if (options) fq.setOptions(options).makeRequest();
 		}
-
-	};
-
-	Element.implement({
-
-		formUpdate: function(update, options){
-			this.get('formRequest', update, options).send();
-			return this;
-		}
-
+		fq.send();
+		return this;
 	});
 
-}).call(this);
+})();
 
 
 /*
@@ -4363,7 +4352,7 @@ Element.implement({
 
 });
 
-}).call(this);
+})();
 
 
 /*
@@ -4422,11 +4411,11 @@ Form.Request.Append = new Class({
 						}
 					}).adopt(kids);
 				}
-				container.inject(this.update, this.options.inject);
+				container.inject(this.target, this.options.inject);
 				if (this.options.requestOptions.evalScripts) Browser.exec(javascript);
 				this.fireEvent('beforeEffect', container);
 				var finish = function(){
-					this.fireEvent('success', [container, this.update, tree, elements, html, javascript]);
+					this.fireEvent('success', [container, this.target, tree, elements, html, javascript]);
 				}.bind(this);
 				if (this.options.useReveal){
 					container.set('reveal', this.options.revealOptions).get('reveal').chain(finish);
@@ -4439,6 +4428,7 @@ Form.Request.Append = new Class({
 				this.fireEvent('failure', xhr);
 			}.bind(this)
 		});
+		this.attachReset();
 	}
 
 });
@@ -5986,7 +5976,7 @@ Fx.Accordion = new Class({
 			}
 		}.bind(this));
 
-		return useFx ? this.start(obj) : this.set(obj);
+		return useFx ? this.start(obj) : this.set(obj).internalChain.callChain();
 	}
 
 });
@@ -6125,6 +6115,7 @@ Fx.Scroll = new Class({
 		var now = Array.flatten(arguments);
 		if (Browser.firefox) now = [Math.round(now[0]), Math.round(now[1])]; // not needed anymore in newer firefox versions
 		this.element.scrollTo(now[0], now[1]);
+		return this;
 	},
 
 	compute: function(from, to, delta){
@@ -6236,7 +6227,7 @@ function isBody(element){
 	return (/^(?:body|html)$/i).test(element.tagName);
 }
 
-}).call(this);
+})();
 
 
 /*
@@ -6298,7 +6289,7 @@ Fx.Slide = new Class({
 
 		this.addEvent('complete', function(){
 			this.open = (wrapper['offset' + this.layout.capitalize()] != 0);
-			if (this.open && options.resetHeight) wrapper.setStyle('height', '');
+			if (this.open && this.options.resetHeight) wrapper.setStyle('height', '');
 		}, true);
 	},
 
@@ -6768,12 +6759,6 @@ var Drag = new Class({
 		var limit = options.limit;
 		this.limit = {x: [], y: []};
 
-		var styles = this.element.getStyles('left', 'right', 'top', 'bottom');
-		this._invert = {
-			x: options.modifiers.x == 'left' && styles.left == 'auto' && !isNaN(styles.right.toInt()) && (options.modifiers.x = 'right'),
-			y: options.modifiers.y == 'top' && styles.top == 'auto' && !isNaN(styles.bottom.toInt()) && (options.modifiers.y = 'bottom')
-		};
-
 		var z, coordinates;
 		for (z in options.modifiers){
 			if (!options.modifiers[z]) continue;
@@ -6790,7 +6775,6 @@ var Drag = new Class({
 			else this.value.now[z] = this.element[options.modifiers[z]];
 
 			if (options.invert) this.value.now[z] *= -1;
-			if (this._invert[z]) this.value.now[z] *= -1;
 
 			this.mouse.pos[z] = event.page[z] - this.value.now[z];
 
@@ -6840,7 +6824,6 @@ var Drag = new Class({
 			this.value.now[z] = this.mouse.now[z] - this.mouse.pos[z];
 
 			if (options.invert) this.value.now[z] *= -1;
-			if (this._invert[z]) this.value.now[z] *= -1;
 
 			if (options.limit && this.limit[z]){
 				if ((this.limit[z][1] || this.limit[z][1] === 0) && (this.value.now[z] > this.limit[z][1])){
@@ -6954,10 +6937,9 @@ Drag.Move = new Class({
 			this.container = document.id(this.container.getDocument().body);
 
 		if (this.options.style){
-			if (this.options.modifiers.x == "left" && this.options.modifiers.y == "top"){
-				var parentStyles,
-					parent = element.getOffsetParent();
-				var styles = element.getStyles('left', 'top');
+			if (this.options.modifiers.x == 'left' && this.options.modifiers.y == 'top'){
+				var parent = element.getOffsetParent(),
+					styles = element.getStyles('left', 'top');
 				if (parent && (styles.left == 'auto' || styles.top == 'auto')){
 					element.setPosition(element.getPosition(parent));
 				}
@@ -7156,8 +7138,7 @@ var Slider = new Class({
 		this.previousChange = this.previousEnd = this.step = -1;
 
 		var limit = {},
-			modifiers = {x: false, y: false},
-			offset;
+			modifiers = {x: false, y: false};
 
 		switch (options.mode){
 			case 'vertical':
@@ -7213,7 +7194,7 @@ var Slider = new Class({
 
 	detach: function(){
 		this.element.removeEvent('mousedown', this.clickedElement)
-			.element.removeEvent('mousewheel', this.scrolledElement);
+			.removeEvent('mousewheel', this.scrolledElement);
 		this.drag.detach();
 		return this;
 	},
@@ -7485,7 +7466,7 @@ var Sortables = new Class({
 		this.clone = this.getClone(event, element);
 
 		this.drag = new Drag.Move(this.clone, Object.merge({
-			
+
 			droppables: this.getDroppables()
 		}, this.options.dragOptions)).addEvents({
 			onSnap: function(){
@@ -7586,8 +7567,7 @@ Request.JSONP = new Class({
 
 	Implements: [Chain, Events, Options],
 
-	options: {
-	/*
+	options: {/*
 		onRequest: function(src, scriptElement){},
 		onComplete: function(data){},
 		onSuccess: function(data){},
@@ -7654,7 +7634,8 @@ Request.JSONP = new Class({
 	},
 
 	getScript: function(src){
-		if (!this.script) this.script = new Element('script[type=text/javascript]', {
+		if (!this.script) this.script = new Element('script', {
+			type: 'text/javascript',
 			async: true,
 			src: src
 		});
@@ -7662,7 +7643,7 @@ Request.JSONP = new Class({
 	},
 
 	success: function(args, index){
-		if (!this.running) return false;
+		if (!this.running) return;
 		this.clear()
 			.fireEvent('complete', args).fireEvent('success', args)
 			.callChain();
@@ -8260,7 +8241,7 @@ String.implement({
 
 });
 
-}).call(this);
+})();
 
 
 
@@ -8322,7 +8303,7 @@ this.Group = new Class({
 
 });
 
-}).call(this);
+})();
 
 
 
@@ -8387,6 +8368,65 @@ Hash.each(Hash.prototype, function(method, name){
 		return value;
 	});
 });
+
+
+/*
+---
+name: Table
+description: LUA-Style table implementation.
+license: MIT-style license
+authors:
+  - Valerio Proietti
+requires: [Core/Array]
+provides: [Table]
+...
+*/
+
+(function(){
+
+var Table = this.Table = function(){
+
+	this.length = 0;
+	var keys = [],
+	    values = [];
+
+	this.set = function(key, value){
+		var index = keys.indexOf(key);
+		if (index == -1){
+			var length = keys.length;
+			keys[length] = key;
+			values[length] = value;
+			this.length++;
+		} else {
+			values[index] = value;
+		}
+		return this;
+	};
+
+	this.get = function(key){
+		var index = keys.indexOf(key);
+		return (index == -1) ? null : values[index];
+	};
+
+	this.erase = function(key){
+		var index = keys.indexOf(key);
+		if (index != -1){
+			this.length--;
+			keys.splice(index, 1);
+			return values.splice(index, 1)[0];
+		}
+		return null;
+	};
+
+	this.each = this.forEach = function(fn, bind){
+		for (var i = 0, l = this.length; i < l; i++) fn.call(bind, keys[i], values[i], this);
+	};
+
+};
+
+if (this.Type) new Type('Table', Table);
+
+})();
 
 
 /*
@@ -8683,7 +8723,7 @@ HtmlTable = Class.refactor(HtmlTable, {
 		if (cell.hasClass(this.options.classNoSort) || cell.retrieve('htmltable-parser')) return cell.retrieve('htmltable-parser');
 		var thDiv = new Element('div');
 		thDiv.adopt(cell.childNodes).inject(cell);
-		var sortSpan = new Element('span', {'html': '&#160;', 'class': this.options.classSortSpan}).inject(thDiv, 'top');
+		var sortSpan = new Element('span', {'class': this.options.classSortSpan}).inject(thDiv, 'top');
 		this.sortSpans.push(sortSpan);
 		var parser = this.options.parsers[index],
 			rows = this.body.rows,
@@ -8715,6 +8755,22 @@ HtmlTable = Class.refactor(HtmlTable, {
 	headClick: function(event, el){
 		if (!this.head || el.hasClass(this.options.classNoSort)) return;
 		return this.sort(Array.indexOf(this.head.getElements(this.options.thSelector).flatten(), el) % this.body.rows[0].cells.length);
+	},
+
+	serialize: function() {
+		var previousSerialization = this.previous.apply(this, arguments) || {};
+		if (this.options.sortable) {
+			previousSerialization.sortIndex = this.sorted.index;
+			previousSerialization.sortReverse = this.sorted.reverse;
+		}
+		return previousSerialization;
+	},
+
+	restore: function(tableState) {
+		if(this.options.sortable && tableState.sortIndex) {
+			this.sort(tableState.sortIndex, tableState.sortReverse);
+		}
+		this.previous.apply(this, arguments);
 	},
 
 	setSortedState: function(index, reverse){
@@ -8806,7 +8862,7 @@ HtmlTable = Class.refactor(HtmlTable, {
 		this.setRowSort(data, pre);
 
 		if (rel) rel.grab(this.body);
-
+		this.fireEvent('stateChanged');
 		return this.fireEvent('sort', [this.body, this.sorted.index]);
 	},
 
@@ -9169,7 +9225,7 @@ provides: [Keyboard]
 		'keydown': handler
 	});
 
-}).call(this);
+})();
 
 
 /*
@@ -9329,11 +9385,14 @@ HtmlTable = Class.refactor(HtmlTable, {
 		this.previous.apply(this, arguments);
 		if (this.occluded) return this.occluded;
 
-		this._selectedRows = new Elements();
+		this.selectedRows = new Elements();
 
-		this._bound = {
-			mouseleave: this._mouseleave.bind(this),
-			clickRow: this._clickRow.bind(this)
+		this.bound = {
+			mouseleave: this.mouseleave.bind(this),
+			clickRow: this.clickRow.bind(this),
+			activateKeyboard: function() {
+				if (this.keyboard && this.selectEnabled) this.keyboard.activate();
+			}.bind(this)
 		};
 
 		if (this.options.selectable) this.enableSelect();
@@ -9345,27 +9404,27 @@ HtmlTable = Class.refactor(HtmlTable, {
 	},
 
 	enableSelect: function(){
-		this._selectEnabled = true;
-		this._attachSelects();
+		this.selectEnabled = true;
+		this.attachSelects();
 		this.element.addClass(this.options.classSelectable);
 		return this;
 	},
 
 	disableSelect: function(){
-		this._selectEnabled = false;
-		this._attachSelects(false);
+		this.selectEnabled = false;
+		this.attachSelects(false);
 		this.element.removeClass(this.options.classSelectable);
 		return this;
 	},
 
 	push: function(){
 		var ret = this.previous.apply(this, arguments);
-		this._updateSelects();
+		this.updateSelects();
 		return ret;
 	},
 
 	isSelected: function(row){
-		return this._selectedRows.contains(row);
+		return this.selectedRows.contains(row);
 	},
 
 	toggleRow: function(row){
@@ -9379,24 +9438,48 @@ HtmlTable = Class.refactor(HtmlTable, {
 		if (!this.options.allowMultiSelect) this.selectNone();
 
 		if (!this.isSelected(row)){
-			this._selectedRows.push(row);
+			this.selectedRows.push(row);
 			row.addClass(this.options.classRowSelected);
-			this.fireEvent('rowFocus', [row, this._selectedRows]);
+			this.fireEvent('rowFocus', [row, this.selectedRows]);
+			this.fireEvent('stateChanged');
 		}
 
-		this._focused = row;
+		this.focused = row;
 		document.clearSelection();
 
 		return this;
 	},
 
+	getSelected: function(){
+		return this.selectedRows;
+	},
+
+	serialize: function() {
+		var previousSerialization = this.previous.apply(this, arguments) || {};
+		if (this.options.selectable) {
+			previousSerialization.selectedRows = this.selectedRows.map(function(row) {
+				return Array.indexOf(this.body.rows, row);
+			}.bind(this));
+		}
+		return previousSerialization;
+	},
+
+	restore: function(tableState) {
+		if(this.options.selectable && tableState.selectedRows) {
+			tableState.selectedRows.each(function(index) {
+				this.selectRow(this.body.rows[index]);
+			}.bind(this));
+		}
+		this.previous.apply(this, arguments);
+	},
+
 	deselectRow: function(row, _nocheck){
 		if (!this.isSelected(row) || (!_nocheck && !this.body.getChildren().contains(row))) return;
 
-		this._selectedRows = new Elements(Array.from(this._selectedRows).erase(row));
+		this.selectedRows = new Elements(Array.from(this.selectedRows).erase(row));
 		row.removeClass(this.options.classRowSelected);
-		this.fireEvent('rowUnfocus', [row, this._selectedRows]);
-
+		this.fireEvent('rowUnfocus', [row, this.selectedRows]);
+		this.fireEvent('stateChanged');
 		return this;
 	},
 
@@ -9435,46 +9518,46 @@ HtmlTable = Class.refactor(HtmlTable, {
 	},
 
 	getSelected: function(){
-		return this._selectedRows;
+		return this.selectedRows;
 	},
 
 /*
 	Private methods:
 */
 
-	_enterRow: function(row){
-		if (this._hovered) this._hovered = this._leaveRow(this._hovered);
-		this._hovered = row.addClass(this.options.classRowHovered);
+	enterRow: function(row){
+		if (this.hovered) this.hovered = this.leaveRow(this.hovered);
+		this.hovered = row.addClass(this.options.classRowHovered);
 	},
 
-	_leaveRow: function(row){
+	leaveRow: function(row){
 		row.removeClass(this.options.classRowHovered);
 	},
 
-	_updateSelects: function(){
+	updateSelects: function(){
 		Array.each(this.body.rows, function(row){
 			var binders = row.retrieve('binders');
-			if (!binders && !this._selectEnabled) return;
+			if (!binders && !this.selectEnabled) return;
 			if (!binders){
 				binders = {
-					mouseenter: this._enterRow.pass([row], this),
-					mouseleave: this._leaveRow.pass([row], this)
+					mouseenter: this.enterRow.pass([row], this),
+					mouseleave: this.leaveRow.pass([row], this)
 				};
 				row.store('binders', binders);
 			}
-			if (this._selectEnabled) row.addEvents(binders);
+			if (this.selectEnabled) row.addEvents(binders);
 			else row.removeEvents(binders);
 		}, this);
 	},
 
-	_shiftFocus: function(offset, event){
-		if (!this._focused) return this.selectRow(this.body.rows[0], event);
-		var to = this._getRowByOffset(offset);
-		if (to === null || this._focused == this.body.rows[to]) return this;
+	shiftFocus: function(offset, event){
+		if (!this.focused) return this.selectRow(this.body.rows[0], event);
+		var to = this.getRowByOffset(offset);
+		if (to === null || this.focused == this.body.rows[to]) return this;
 		this.toggleRow(this.body.rows[to], event);
 	},
 
-	_clickRow: function(event, row){
+	clickRow: function(event, row){
 		var selecting = (event.shift || event.meta || event.control) && this.options.shiftForMultiSelect;
 		if (!selecting && !(event.rightClick && this.isSelected(row) && this.options.allowMultiSelect)) this.selectNone();
 
@@ -9482,16 +9565,16 @@ HtmlTable = Class.refactor(HtmlTable, {
 		else this.toggleRow(row);
 
 		if (event.shift){
-			this.selectRange(this._rangeStart || this.body.rows[0], row, this._rangeStart ? !this.isSelected(row) : true);
-			this._focused = row;
+			this.selectRange(this.rangeStart || this.body.rows[0], row, this.rangeStart ? !this.isSelected(row) : true);
+			this.focused = row;
 		}
-		this._rangeStart = row;
+		this.rangeStart = row;
 	},
 
-	_getRowByOffset: function(offset){
-		if (!this._focused) return 0;
+	getRowByOffset: function(offset){
+		if (!this.focused) return 0;
 		var rows = Array.clone(this.body.rows),
-			index = rows.indexOf(this._focused) + offset;
+			index = rows.indexOf(this.focused) + offset;
 
 		if (index < 0) index = null;
 		if (index >= rows.length) index = null;
@@ -9499,21 +9582,24 @@ HtmlTable = Class.refactor(HtmlTable, {
 		return index;
 	},
 
-	_attachSelects: function(attach){
+	attachSelects: function(attach){
 		attach = attach != null ? attach : true;
 
 		var method = attach ? 'addEvents' : 'removeEvents';
 		this.element[method]({
-			mouseleave: this._bound.mouseleave
+			mouseleave: this.bound.mouseleave,
+			click: this.bound.activateKeyboard
 		});
 
 		this.body[method]({
-			'click:relay(tr)': this._bound.clickRow,
-			'contextmenu:relay(tr)': this._bound.clickRow
+			'click:relay(tr)': this.bound.clickRow,
+			'contextmenu:relay(tr)': this.bound.clickRow
 		});
 
 		if (this.options.useKeyboard || this.keyboard){
-			if (!this.keyboard){
+			if (!this.keyboard) this.keyboard = new Keyboard();
+			if (!this.selectKeysDefined) {
+				this.selectKeysDefined = true;
 				var timer, held;
 
 				var move = function(offset){
@@ -9521,15 +9607,15 @@ HtmlTable = Class.refactor(HtmlTable, {
 						clearTimeout(timer);
 						e.preventDefault();
 
-						var to = this.body.rows[this._getRowByOffset(offset)];
+						var to = this.body.rows[this.getRowByOffset(offset)];
 						if (e.shift && to && this.isSelected(to)){
-							this.deselectRow(this._focused);
-							this._focused = to;
+							this.deselectRow(this.focused);
+							this.focused = to;
 						} else {
 							if (to && (!this.options.allowMultiSelect || !e.shift)){
 								this.selectNone();
 							}
-							this._shiftFocus(offset, e);
+							this.shiftFocus(offset, e);
 						}
 
 						if (held){
@@ -9549,16 +9635,13 @@ HtmlTable = Class.refactor(HtmlTable, {
 					held = false;
 				};
 
-				this.keyboard = new Keyboard({
-					events: {
-						'keydown:shift+up': move(-1),
-						'keydown:shift+down': move(1),
-						'keyup:shift+up': clear,
-						'keyup:shift+down': clear,
-						'keyup:up': clear,
-						'keyup:down': clear
-					},
-					active: true
+				this.keyboard.addEvents({
+					'keydown:shift+up': move(-1),
+					'keydown:shift+down': move(1),
+					'keyup:shift+up': clear,
+					'keyup:shift+down': clear,
+					'keyup:up': clear,
+					'keyup:down': clear
 				});
 
 				var shiftHint = '';
@@ -9584,11 +9667,11 @@ HtmlTable = Class.refactor(HtmlTable, {
 			}
 			this.keyboard[attach ? 'activate' : 'deactivate']();
 		}
-		this._updateSelects();
+		this.updateSelects();
 	},
 
-	_mouseleave: function(){
-		if (this._hovered) this._leaveRow(this._hovered);
+	mouseleave: function(){
+		if (this.hovered) this.leaveRow(this.hovered);
 	}
 
 });
@@ -9924,7 +10007,7 @@ this.Tips = new Class({
 
 });
 
-}).call(this);
+})();
 
 
 /*
@@ -9978,5 +10061,4 @@ Locale.Set.from = function(set, type){
 	return locale;
 };
 
-}).call(this);
-
+})();
