@@ -1,0 +1,29 @@
+
+.scrollarea {
+	cursor: move;
+	height: 300px;
+	width: 400px;
+	border: 1px solid #6B7B95;
+	overflow: hidden;
+}
+
+.scrollarea > div {
+	background: #DDD;
+	padding: 200px 0;
+}
+
+.scrollarea > div > div {
+	padding: 20px;
+}
+
+.scrollarea.world_map {
+	width: 700px;
+	height: 400px;
+}
+
+.scrollarea.world_map > div {
+	background: url(demos/Drag.Scroll/world.jpg);
+	padding: 0;
+	height: 2028px;
+	width: 3652px;
+}

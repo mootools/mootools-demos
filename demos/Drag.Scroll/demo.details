@@ -1,0 +1,25 @@
+/*
+---
+
+name: Drag.Scroll
+
+description: A drag and scroll example
+
+authors:
+  - Arian Stolwijk
+
+docs:
+  - name: Class
+    url: http://mootools.net/docs/core/Class/Class
+  - name: Drag
+    url: http://mootools.net/docs/more/Drag/Drag
+  - name: Fx.Scroll
+    url: http://mootools.net/docs/more/Fx/Fx.Scroll
+
+...
+*/
+
+<p>
+	Combining drag and its invert option, and Fx.Scroll to a Google Maps or
+	Mobile scrolling experience.
+</p>
