@@ -71,6 +71,7 @@ if (isset($_GET['demo'])){
 					<li><a href="?demo=Drag.Cart">Drag.Cart</a></li>
 					<li><a href="?demo=Drag.Drop">Drag.Drop</a></li>
 					<li><a href="?demo=Drag.Move">Drag.Move</a></li>
+					<li><a href="?demo=Drag.Scroll">Drag.Scroll</a></li>
 					<li><h4>Effects</h4></li>
 					<li><a href="?demo=Effects">Effects</a></li>
 					<li><a href="?demo=Fx.Morph">Fx.Morph</a></li>
