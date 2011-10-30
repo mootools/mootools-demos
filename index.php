@@ -153,14 +153,13 @@ if (isset($_GET['demo'])){
 				</div>
 
 				<script src="assets/codemirror/js/codemirror.js" type="text/javascript"></script>
-				<script src="Source/mootools-core-1.3-full.js" type="text/javascript"></script>
-				<script src="Source/mootools-more-1.3-full.js" type="text/javascript"></script>
+				<script src="Source/mootools-core-1.4-full.js" type="text/javascript"></script>
+				<script src="Source/mootools-more-1.4-full.js" type="text/javascript"></script>
 				<script src="assets/js/demos.js" type="text/javascript"></script>
 
 				<script type="text/javascript">
 					<?php echo $js_demo; ?>
 				</script>
-
 
 				<?php else: ?>
 				<h2>MooTools Demos</h2>
