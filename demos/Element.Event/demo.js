@@ -1,6 +1,6 @@
 
 window.addEvent('domready', function() {
-	var textarea = $('myTextarea'), log = $('log');
+	var textarea = $('myTextarea'), log = $('log').setStyle('opacity', 0);
 
 	// We define the highlight morph we're going to
 	// use when firing an event

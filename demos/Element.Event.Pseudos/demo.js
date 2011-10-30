@@ -12,7 +12,7 @@ window.addEvent('domready', function() {
 	});
 
 	// we can define our own pseudo events as well, for example to check for the alt key
-	Event.definePseudo('alt', function(split, fn, args){
+	DOMEvent.definePseudo('alt', function(split, fn, args){
 		// args[0] is the Event instance
 		if(args[0].alt) fn.apply(this, args);
 	});
